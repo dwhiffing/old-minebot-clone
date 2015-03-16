@@ -4,32 +4,28 @@ class Shot extends Phaser.Sprite {
     super(game, x, y, 'shot');
     this.charging = true
     this.damage = 5;
+    this.minDamage = 20;
     this.maxDamage = 40;
-    this.minSpeed = 300;
-    this.maxSpeed = 600;
+    this.speed = {min: 300, max: 600}
     this.chargingRate = 0.4;
     game.shotGroup.add(this)
     this.anchor.setTo(0.5, 0.5);
-    this.game.physics.enable(this, Phaser.Physics.ARCADE);
+    game.physics.enable(this, Phaser.Physics.ARCADE);
   }
 
-  release(angle, speed=this.minSpeed) {
-    if (this.damage < 20) this.kill();
+  release(angle, speed) {
+    if (this.damage < this.minDamage) this.kill();
 
     if (speed < 100) {
-      var scalething = 1 +this.damage/30
-      var tween = game.add.tween(this.scale)
-      tween.to({x:scalething,y:scalething}, 500, Phaser.Easing.Linear.None)
-      tween.onComplete.addOnce(this.kill, this);
-      tween.start();
-      console.log(speed <100) 
+      var scale = 1+this.damage/30
+      game.add.tween(this.scale)
+        .to({x:scale,y:scale}, 500, Phaser.Easing.Linear.None, true)
+        .onComplete.addOnce(this.kill, this);
     } else {
-      speed = speed < this.minSpeed ? this.minSpeed : speed;
-      speed = speed > this.maxSpeed ? this.maxSpeed : speed;
+      game.math.clamp(speed, this.speed.min, this.speed.max)
       speed = game.physics.arcade.velocityFromAngle(angle, speed)
+      this.body.velocity.setTo(speed.x, speed.y)
       this.charging = false;
-      this.body.velocity.x = speed.x;
-      this.body.velocity.y = speed.y;
     }
   }
 
@@ -46,14 +42,12 @@ class Shot extends Phaser.Sprite {
   }
   
   update() {
-    if(this.charging && this.damage < this.maxDamage){
+    if (this.charging && this.damage < this.maxDamage){
       this.damage += this.chargingRate;
     } else {
       this.damage -= 0.1;
-      if (this.damage <= 8) {
-        this.kill();
-        return
-      }
+      if (this.damage <= 8) this.kill();
+
       if (this.x<10 || this.x > game.width-20) {
         this.x = this.x<10 ? this.x+25 : this.x-25
         this.bounceX()
@@ -63,13 +57,9 @@ class Shot extends Phaser.Sprite {
         this.bounceY()
       }
     }
-    if (this.damage < 20) {
-      this.alpha = this.damage/20;
-    } else {
-      this.alpha = 1;
-    }
-    this.width = this.damage;
-    this.height = this.damage;
+    this.alpha = this.damage < 20 ? this.damage/20 : 1;
+    
+    this.scale.setTo(this.damage/80)
   }
 }
 

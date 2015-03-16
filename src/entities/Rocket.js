@@ -6,7 +6,7 @@ class Rocket extends Phaser.Sprite {
     super(game, x, y, 'rocket');
 
     this.anchor.setTo(0.5, 0.5);
-    this.game.physics.enable(this, Phaser.Physics.ARCADE);
+    game.physics.enable(this, Phaser.Physics.ARCADE);
     this.target = game.bot;
     this.math = game.math;
     this.didhit=false;
@@ -25,7 +25,7 @@ class Rocket extends Phaser.Sprite {
     this.timer.start();
     this.sleep()
 
-    this.game.add.tween(this).to({ wobble: -this.wobble },
+    game.add.tween(this).to({ wobble: -this.wobble },
         250, Phaser.Easing.Sinusoidal.InOut, true, 0,
         Number.POSITIVE_INFINITY, true
       );
@@ -44,10 +44,10 @@ class Rocket extends Phaser.Sprite {
     this.parent.forEachAlive(function(rocket) {
       if (this == rocket || avoidAngle !== 0) return;
 
-      var distance = this.game.math.distance(this.x, this.y, rocket.x, rocket.y);
+      var distance = game.math.distance(this.x, this.y, rocket.x, rocket.y);
       if (distance < 30) {
         avoidAngle = Math.PI/2;
-        if (this.game.math.chanceRoll(50)) avoidAngle *= -1;
+        if (game.math.chanceRoll(50)) avoidAngle *= -1;
       }
     }, this);
 
@@ -56,7 +56,7 @@ class Rocket extends Phaser.Sprite {
   }
 
   getWobble() { 
-    return this.game.math.degToRad(this.wobble)
+    return game.math.degToRad(this.wobble)
   }
 
   rotationThrottle(angle) { 
@@ -74,7 +74,7 @@ class Rocket extends Phaser.Sprite {
       this.angle -= this.turnRate;
     }
     // Just set angle to target angle if they are close
-    if (Math.abs(delta) < this.game.math.degToRad(this.turnRate)) {
+    if (Math.abs(delta) < game.math.degToRad(this.turnRate)) {
       this.rotation = angle;
     }
   }
@@ -85,7 +85,7 @@ class Rocket extends Phaser.Sprite {
       game.score_text.text = `score ${game.bot.score}`
     }
     this.didhit=false;
-    game.blasts.getBlast(this.x, this.y);
+    game.blasts.get(this.x, this.y);
     super.kill()
     game.left_text.text = `enemies ${game.wave_timer+game.rockets.countLiving()}`
   }
@@ -108,8 +108,8 @@ class Rocket extends Phaser.Sprite {
     this.updateEmitter();
     if (!this.alive) return
     
-    var targetAngle = this.game.math.angleBetween(this.x, this.y, this.target.x, this.target.y);
-    var distance = this.game.math.distance(this.x, this.y, this.target.x, this.target.y);
+    var targetAngle = game.math.angleBetween(this.x, this.y, this.target.x, this.target.y);
+    var distance = game.math.distance(this.x, this.y, this.target.x, this.target.y);
     
     if (distance < 125) {
       this.timer.pause()

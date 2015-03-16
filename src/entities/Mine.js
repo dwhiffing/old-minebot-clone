@@ -4,25 +4,31 @@ class Mine extends Phaser.Sprite {
     super(game, x, y, 'mine');
     this.anchor.setTo(0.5, 0.5);
     this.damage = 100;
+    this.triggered = false;
+    this.blast_delay = 350
   }
 
   update() {
-    if (!this.alive) return
-    var shouldKill = false
-    game.rockets.forEachAlive(function(rocket) {
-      var distance = this.game.math.distance(this.x, this.y, rocket.x, rocket.y);
-      if (distance < 60) {
-        shouldKill = true;
-        rocket.damage(this.damage);
-      }
-    }, this);
-    if(shouldKill){ 
-      this.kill()
+    if (!this.alive || this.triggered) return
+      
+    if (this.getInRange().length > 0) {
+      this.triggered = true
+      game.time.events.add(this.blast_delay, () => this.kill())
     }
   }
 
+  getInRange() {
+    return game.rockets.children.filter((r) => this.getDist(r) < 60);
+  }
+
+  getDist(thing) {
+    return game.math.distance(this.x, this.y, thing.x, thing.y);
+  }
+
   kill() {
-    this.parent.blasts.getBlast(this.x, this.y, 0.7);
+    this.triggered = false;
+    game.blasts.get(this.x, this.y, 0.7);
+    this.getInRange().forEach((r) => r.damage(this.damage))
     super.kill();
   }
 }

@@ -10,7 +10,7 @@ class Bot extends Phaser.Sprite {
     this.dragOffset = {};
     this.dragStart = {};
     this.anchor.setTo(0.5, 0.5);
-    this.game.physics.enable(this, Phaser.Physics.ARCADE);
+    game.physics.enable(this, Phaser.Physics.ARCADE);
     this.is_mobile = game.device.touch
     this.pointer = this.is_mobile ? game.input.pointer1 : game.input.activePointer;
     this.target = this.is_mobile ? {x,y} : this.pointer;
@@ -33,7 +33,7 @@ class Bot extends Phaser.Sprite {
     if (!this.alive) return 
     game.time.events.add(200, ()=>{
       if(!pointer.isDown) {
-        game.mines.getMine(this.x, this.y)
+        game.mines.get(this.x, this.y)
       } else {
         this.currentShot = new Shot(this.x, this.y)
         this.currentShot.x = this.x
@@ -94,10 +94,9 @@ class Bot extends Phaser.Sprite {
     this.health -= dam
     var color_string = `rgba(${Math.floor(200-(20-this.health/2))},${200-(200-this.health*2)},${200-(200-this.health*2)})`
     this.scale.setTo(1,1)
-    this.tint = this.rgb2hex(color_string);
 
     if (this.health <= 0) {
-      var blast = game.blasts.getBlast(this.x, this.y);
+      var blast = game.blasts.get(this.x, this.y);
       if (this.lives < 1) {
         this.lives = 5
         game.wave_num = 1;
@@ -129,14 +128,6 @@ class Bot extends Phaser.Sprite {
       this.invincible = false;
       this.damage(0)
     })
-  }
-  
-  rgb2hex(rgb){
-   rgb = rgb.match(/^rgba?[\s+]?\([\s+]?(\d+)[\s+]?,[\s+]?(\d+)[\s+]?,[\s+]?(\d+)[\s+]?/i);
-   return (rgb && rgb.length === 4) ? "0x" +
-    ("0" + parseInt(rgb[1],10).toString(16)).slice(-2) +
-    ("0" + parseInt(rgb[2],10).toString(16)).slice(-2) +
-    ("0" + parseInt(rgb[3],10).toString(16)).slice(-2) : '';
   }
 
   update() {

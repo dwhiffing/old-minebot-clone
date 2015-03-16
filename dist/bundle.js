@@ -21,7 +21,7 @@ var _inherits = function (subClass, superClass) { if (typeof superClass !== "fun
 var _classCallCheck = function (instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } };
 
 var BlastGroup = (function (_Phaser$Group) {
-  function BlastGroup(game) {
+  function BlastGroup() {
     _classCallCheck(this, BlastGroup);
 
     _get(Object.getPrototypeOf(BlastGroup.prototype), "constructor", this).call(this, game);
@@ -30,26 +30,27 @@ var BlastGroup = (function (_Phaser$Group) {
   _inherits(BlastGroup, _Phaser$Group);
 
   _createClass(BlastGroup, {
-    createBlast: {
-      value: function createBlast() {
-        var blast = this.game.add.sprite(0, 0, "explosion");
+    create: {
+      value: function create() {
+        var blast = game.add.sprite(0, 0, "explosion");
         blast.anchor.setTo(0.5, 0.5);
+        this.add(blast);
+
         var animation = blast.animations.add("boom", [0, 1, 2, 3], 60, false);
         animation.killOnComplete = true;
-        this.add(blast);
 
         return blast;
       }
     },
-    getBlast: {
-      value: function getBlast(x, y) {
+    get: {
+      value: function get(x, y) {
         var scale = arguments[2] === undefined ? 0.3 : arguments[2];
 
-        var blast = this.getFirstDead() || this.createBlast();
+        var blast = this.getFirstDead() || this.create();
         blast.reset(x, y);
         blast.scale.setTo(scale, scale);
 
-        blast.angle = this.game.rnd.integerInRange(0, 360);
+        blast.angle = game.rnd.integerInRange(0, 360);
         blast.animations.play("boom");
 
         return blast;
@@ -89,7 +90,7 @@ var Bot = (function (_Phaser$Sprite) {
     this.dragOffset = {};
     this.dragStart = {};
     this.anchor.setTo(0.5, 0.5);
-    this.game.physics.enable(this, Phaser.Physics.ARCADE);
+    game.physics.enable(this, Phaser.Physics.ARCADE);
     this.is_mobile = game.device.touch;
     this.pointer = this.is_mobile ? game.input.pointer1 : game.input.activePointer;
     this.target = this.is_mobile ? { x: x, y: y } : this.pointer;
@@ -119,7 +120,7 @@ var Bot = (function (_Phaser$Sprite) {
           return;
         }game.time.events.add(200, function () {
           if (!pointer.isDown) {
-            game.mines.getMine(_this.x, _this.y);
+            game.mines.get(_this.x, _this.y);
           } else {
             _this.currentShot = new Shot(_this.x, _this.y);
             _this.currentShot.x = _this.x;
@@ -191,10 +192,9 @@ var Bot = (function (_Phaser$Sprite) {
         }this.health -= dam;
         var color_string = "rgba(" + Math.floor(200 - (20 - this.health / 2)) + "," + (200 - (200 - this.health * 2)) + "," + (200 - (200 - this.health * 2)) + ")";
         this.scale.setTo(1, 1);
-        this.tint = this.rgb2hex(color_string);
 
         if (this.health <= 0) {
-          var blast = game.blasts.getBlast(this.x, this.y);
+          var blast = game.blasts.get(this.x, this.y);
           if (this.lives < 1) {
             this.lives = 5;
             game.wave_num = 1;
@@ -229,12 +229,6 @@ var Bot = (function (_Phaser$Sprite) {
           _this.invincible = false;
           _this.damage(0);
         });
-      }
-    },
-    rgb2hex: {
-      value: function rgb2hex(rgb) {
-        rgb = rgb.match(/^rgba?[\s+]?\([\s+]?(\d+)[\s+]?,[\s+]?(\d+)[\s+]?,[\s+]?(\d+)[\s+]?/i);
-        return rgb && rgb.length === 4 ? "0x" + ("0" + parseInt(rgb[1], 10).toString(16)).slice(-2) + ("0" + parseInt(rgb[2], 10).toString(16)).slice(-2) + ("0" + parseInt(rgb[3], 10).toString(16)).slice(-2) : "";
       }
     },
     update: {
@@ -289,6 +283,8 @@ var Mine = (function (_Phaser$Sprite) {
     _get(Object.getPrototypeOf(Mine.prototype), "constructor", this).call(this, game, x, y, "mine");
     this.anchor.setTo(0.5, 0.5);
     this.damage = 100;
+    this.triggered = false;
+    this.blast_delay = 350;
   }
 
   _inherits(Mine, _Phaser$Sprite);
@@ -296,24 +292,41 @@ var Mine = (function (_Phaser$Sprite) {
   _createClass(Mine, {
     update: {
       value: function update() {
-        if (!this.alive) {
+        var _this = this;
+
+        if (!this.alive || this.triggered) {
           return;
-        }var shouldKill = false;
-        game.rockets.forEachAlive(function (rocket) {
-          var distance = this.game.math.distance(this.x, this.y, rocket.x, rocket.y);
-          if (distance < 60) {
-            shouldKill = true;
-            rocket.damage(this.damage);
-          }
-        }, this);
-        if (shouldKill) {
-          this.kill();
+        }if (this.getInRange().length > 0) {
+          this.triggered = true;
+          game.time.events.add(this.blast_delay, function () {
+            return _this.kill();
+          });
         }
+      }
+    },
+    getInRange: {
+      value: function getInRange() {
+        var _this = this;
+
+        return game.rockets.children.filter(function (r) {
+          return _this.getDist(r) < 60;
+        });
+      }
+    },
+    getDist: {
+      value: function getDist(thing) {
+        return game.math.distance(this.x, this.y, thing.x, thing.y);
       }
     },
     kill: {
       value: function kill() {
-        this.parent.blasts.getBlast(this.x, this.y, 0.7);
+        var _this = this;
+
+        this.triggered = false;
+        game.blasts.get(this.x, this.y, 0.7);
+        this.getInRange().forEach(function (r) {
+          return r.damage(_this.damage);
+        });
         _get(Object.getPrototypeOf(Mine.prototype), "kill", this).call(this);
       }
     }
@@ -339,49 +352,38 @@ var _classCallCheck = function (instance, Constructor) { if (!(instance instance
 
 var Mine = _interopRequire(require("./Mine.js"));
 
-var BlastGroup = _interopRequire(require("./BlastGroup.js"));
+var MineGroup = (function (_Phaser$Group) {
+  function MineGroup() {
+    _classCallCheck(this, MineGroup);
 
-var RocketGroup = (function (_Phaser$Group) {
-  function RocketGroup() {
-    _classCallCheck(this, RocketGroup);
-
-    _get(Object.getPrototypeOf(RocketGroup.prototype), "constructor", this).call(this, game);
-    this.MAX_MINES = 5;
-    this.blasts = new BlastGroup(this.game);
+    _get(Object.getPrototypeOf(MineGroup.prototype), "constructor", this).call(this, game);
   }
 
-  _inherits(RocketGroup, _Phaser$Group);
+  _inherits(MineGroup, _Phaser$Group);
 
-  _createClass(RocketGroup, {
-    createMine: {
-      value: function createMine() {
+  _createClass(MineGroup, {
+    create: {
+      value: function create() {
         var mine = new Mine(0, 0);
         this.add(mine);
         return mine;
       }
     },
-    getMine: {
-      value: function getMine(x, y) {
-        var mine = this.getFirstDead() || this.createMine();
+    get: {
+      value: function get(x, y) {
+        var mine = this.getFirstDead() || this.create();
         mine.reset(x, y);
         return mine;
-      }
-    },
-    launch: {
-      value: function launch(x, y) {
-        if (this.countLiving() < this.MAX_MINES) {
-          this.getMine(x, y);
-        }
       }
     }
   });
 
-  return RocketGroup;
+  return MineGroup;
 })(Phaser.Group);
 
-module.exports = RocketGroup;
+module.exports = MineGroup;
 
-},{"./BlastGroup.js":"/Users/danielwhiffing/Dropbox/js/phaser/minebot/src/entities/BlastGroup.js","./Mine.js":"/Users/danielwhiffing/Dropbox/js/phaser/minebot/src/entities/Mine.js"}],"/Users/danielwhiffing/Dropbox/js/phaser/minebot/src/entities/Rocket.js":[function(require,module,exports){
+},{"./Mine.js":"/Users/danielwhiffing/Dropbox/js/phaser/minebot/src/entities/Mine.js"}],"/Users/danielwhiffing/Dropbox/js/phaser/minebot/src/entities/Rocket.js":[function(require,module,exports){
 "use strict";
 
 var _interopRequire = function (obj) { return obj && obj.__esModule ? obj["default"] : obj; };
@@ -403,7 +405,7 @@ var Rocket = (function (_Phaser$Sprite) {
     _get(Object.getPrototypeOf(Rocket.prototype), "constructor", this).call(this, game, x, y, "rocket");
 
     this.anchor.setTo(0.5, 0.5);
-    this.game.physics.enable(this, Phaser.Physics.ARCADE);
+    game.physics.enable(this, Phaser.Physics.ARCADE);
     this.target = game.bot;
     this.math = game.math;
     this.didhit = false;
@@ -422,7 +424,7 @@ var Rocket = (function (_Phaser$Sprite) {
     this.timer.start();
     this.sleep();
 
-    this.game.add.tween(this).to({ wobble: -this.wobble }, 250, Phaser.Easing.Sinusoidal.InOut, true, 0, Number.POSITIVE_INFINITY, true);
+    game.add.tween(this).to({ wobble: -this.wobble }, 250, Phaser.Easing.Sinusoidal.InOut, true, 0, Number.POSITIVE_INFINITY, true);
 
     this.smokeEmitter = new SmokeEmitter(game);
   }
@@ -443,10 +445,10 @@ var Rocket = (function (_Phaser$Sprite) {
         this.parent.forEachAlive(function (rocket) {
           if (this == rocket || avoidAngle !== 0) return;
 
-          var distance = this.game.math.distance(this.x, this.y, rocket.x, rocket.y);
+          var distance = game.math.distance(this.x, this.y, rocket.x, rocket.y);
           if (distance < 30) {
             avoidAngle = Math.PI / 2;
-            if (this.game.math.chanceRoll(50)) avoidAngle *= -1;
+            if (game.math.chanceRoll(50)) avoidAngle *= -1;
           }
         }, this);
 
@@ -456,7 +458,7 @@ var Rocket = (function (_Phaser$Sprite) {
     },
     getWobble: {
       value: function getWobble() {
-        return this.game.math.degToRad(this.wobble);
+        return game.math.degToRad(this.wobble);
       }
     },
     rotationThrottle: {
@@ -476,7 +478,7 @@ var Rocket = (function (_Phaser$Sprite) {
           this.angle -= this.turnRate;
         }
         // Just set angle to target angle if they are close
-        if (Math.abs(delta) < this.game.math.degToRad(this.turnRate)) {
+        if (Math.abs(delta) < game.math.degToRad(this.turnRate)) {
           this.rotation = angle;
         }
       }
@@ -488,7 +490,7 @@ var Rocket = (function (_Phaser$Sprite) {
           game.score_text.text = "score " + game.bot.score;
         }
         this.didhit = false;
-        game.blasts.getBlast(this.x, this.y);
+        game.blasts.get(this.x, this.y);
         _get(Object.getPrototypeOf(Rocket.prototype), "kill", this).call(this);
         game.left_text.text = "enemies " + (game.wave_timer + game.rockets.countLiving());
       }
@@ -518,8 +520,8 @@ var Rocket = (function (_Phaser$Sprite) {
         this.updateEmitter();
         if (!this.alive) {
           return;
-        }var targetAngle = this.game.math.angleBetween(this.x, this.y, this.target.x, this.target.y);
-        var distance = this.game.math.distance(this.x, this.y, this.target.x, this.target.y);
+        }var targetAngle = game.math.angleBetween(this.x, this.y, this.target.x, this.target.y);
+        var distance = game.math.distance(this.x, this.y, this.target.x, this.target.y);
 
         if (distance < 125) {
           this.timer.pause();
@@ -574,51 +576,42 @@ var RocketGroup = (function (_Phaser$Group) {
   function RocketGroup() {
     _classCallCheck(this, RocketGroup);
 
-    this.max_missiles = 3;
+    this.max = 10;
     _get(Object.getPrototypeOf(RocketGroup.prototype), "constructor", this).call(this, game);
   }
 
   _inherits(RocketGroup, _Phaser$Group);
 
   _createClass(RocketGroup, {
-    createRocket: {
-      value: function createRocket() {
-        var rocket = new Rocket(this.game, 0, 0);
+    create: {
+      value: function create() {
+        var rocket = new Rocket(game, 0, 0);
         this.add(rocket);
         return rocket;
       }
     },
-    getRocket: {
-      value: function getRocket(x, y) {
-        var rocket = this.getFirstDead() || this.createRocket();
+    get: {
+      value: function get(x, y) {
+        var rocket = this.getFirstDead() || this.create();
         rocket.reset(x, y, 50);
-
         return rocket;
       }
     },
     updateForWave: {
       value: function updateForWave(wave) {
-        this.max_missiles = Math.floor(3 + wave / 4);
+        this.max = Math.floor(10 + wave / 2);
       }
     },
     launch: {
       value: function launch() {
-        if (this.countLiving() < this.max_missiles) {
+        if (this.countLiving() < this.max) {
           game.wave_timer--;
           game.left_text.text = "enemies " + (game.wave_timer + this.countLiving());
-          // Set the launch point to a random location below the bottom edge of the stage
-          if (this.game.math.chanceRoll(50)) {
-            var x = this.game.rnd.integerInRange(-20, 0);
-          } else {
-            var x = this.game.rnd.integerInRange(this.game.width, this.game.width + 20);
-          }
 
-          if (this.game.math.chanceRoll(50)) {
-            var y = this.game.rnd.integerInRange(-20, 0);
-          } else {
-            var y = this.game.rnd.integerInRange(this.game.height, this.game.height + 20);
-          }
-          this.getRocket(x, y);
+          var x = game.math.chanceRoll(50) ? -20 : game.width + 20;
+          var y = game.math.chanceRoll(50) ? -20 : game.height + 20;
+
+          this.get(x, y);
         }
       }
     }
@@ -647,38 +640,30 @@ var Shot = (function (_Phaser$Sprite) {
     _get(Object.getPrototypeOf(Shot.prototype), "constructor", this).call(this, game, x, y, "shot");
     this.charging = true;
     this.damage = 5;
+    this.minDamage = 20;
     this.maxDamage = 40;
-    this.minSpeed = 300;
-    this.maxSpeed = 600;
+    this.speed = { min: 300, max: 600 };
     this.chargingRate = 0.4;
     game.shotGroup.add(this);
     this.anchor.setTo(0.5, 0.5);
-    this.game.physics.enable(this, Phaser.Physics.ARCADE);
+    game.physics.enable(this, Phaser.Physics.ARCADE);
   }
 
   _inherits(Shot, _Phaser$Sprite);
 
   _createClass(Shot, {
     release: {
-      value: function release(angle) {
-        var speed = arguments[1] === undefined ? this.minSpeed : arguments[1];
-
-        if (this.damage < 20) this.kill();
+      value: function release(angle, speed) {
+        if (this.damage < this.minDamage) this.kill();
 
         if (speed < 100) {
-          var scalething = 1 + this.damage / 30;
-          var tween = game.add.tween(this.scale);
-          tween.to({ x: scalething, y: scalething }, 500, Phaser.Easing.Linear.None);
-          tween.onComplete.addOnce(this.kill, this);
-          tween.start();
-          console.log(speed < 100);
+          var scale = 1 + this.damage / 30;
+          game.add.tween(this.scale).to({ x: scale, y: scale }, 500, Phaser.Easing.Linear.None, true).onComplete.addOnce(this.kill, this);
         } else {
-          speed = speed < this.minSpeed ? this.minSpeed : speed;
-          speed = speed > this.maxSpeed ? this.maxSpeed : speed;
+          game.math.clamp(speed, this.speed.min, this.speed.max);
           speed = game.physics.arcade.velocityFromAngle(angle, speed);
+          this.body.velocity.setTo(speed.x, speed.y);
           this.charging = false;
-          this.body.velocity.x = speed.x;
-          this.body.velocity.y = speed.y;
         }
       }
     },
@@ -703,10 +688,8 @@ var Shot = (function (_Phaser$Sprite) {
           this.damage += this.chargingRate;
         } else {
           this.damage -= 0.1;
-          if (this.damage <= 8) {
-            this.kill();
-            return;
-          }
+          if (this.damage <= 8) this.kill();
+
           if (this.x < 10 || this.x > game.width - 20) {
             this.x = this.x < 10 ? this.x + 25 : this.x - 25;
             this.bounceX();
@@ -716,13 +699,9 @@ var Shot = (function (_Phaser$Sprite) {
             this.bounceY();
           }
         }
-        if (this.damage < 20) {
-          this.alpha = this.damage / 20;
-        } else {
-          this.alpha = 1;
-        }
-        this.width = this.damage;
-        this.height = this.damage;
+        this.alpha = this.damage < 20 ? this.damage / 20 : 1;
+
+        this.scale.setTo(this.damage / 80);
       }
     }
   });
@@ -826,6 +805,8 @@ var Bot = _interopRequire(require("../entities/Bot.js"));
 
 module.exports = {
   create: function create() {
+    game.stage.backgroundColor = 0;
+
     game.lives_text = game.add.text(10, game.height - 35, "lives 5", { font: "13pt Arial", fill: "#ee2c63" });
     game.lives_text.anchor.setTo(0, 0.5);
     game.score_text = game.add.text(10, game.height - 10, "score 0", { font: "13pt Arial", fill: "#ee2c63" });
@@ -834,14 +815,15 @@ module.exports = {
     game.wave_text.anchor.setTo(1, 0.5);
     game.left_text = game.add.text(game.width - 20, game.height - 10, "enemies 0", { font: "13pt Arial", fill: "#ee2c63", align: "right" });
     game.left_text.anchor.setTo(1, 0.5);
-    game.stage.backgroundColor = 0;
+
     game.shotGroup = game.add.group();
-    game.mines = new MineGroup(this.game);
-    game.bot = new Bot(this.game.width / 2, this.game.height / 2);
-    game.rockets = new RocketGroup(this.game);
-    game.blasts = new BlastGroup(this.game);
+    game.mines = new MineGroup(game);
+    game.bot = new Bot(game.width / 2, game.height / 2);
+    game.rockets = new RocketGroup(game);
+    game.blasts = new BlastGroup(game);
+
     game.wave_num = 1;
-    game.wave_timer = 3;
+    game.wave_timer = 10;
     game.wave_in_progress = true;
     this.something = true;
   },
@@ -866,7 +848,7 @@ module.exports = {
   },
 
   nextWave: function nextWave() {
-    game.wave_timer = 3 + game.wave_num * 2;
+    game.wave_timer = 10 + game.wave_num * 2;
     this.something = true;
     game.time.events.add(2000, function () {
       game.wave_num++;
