@@ -3,63 +3,72 @@ class Shot extends Phaser.Sprite {
   constructor(x, y) {
     super(game, x, y, 'shot');
     this.charging = true
-    this.damage = 5;
-    this.minDamage = 20;
-    this.maxDamage = 40;
+    this.health = 5;
+    this.scale.setTo(0)
+    this.minHealth = 20;
+    this.maxHealth = 40;
     this.speed = {min: 300, max: 600}
     this.chargingRate = 0.4;
     game.shotGroup.add(this)
-    this.anchor.setTo(0.5, 0.5);
+    this.anchor.setTo(0.5);
     game.physics.enable(this, Phaser.Physics.ARCADE);
+    
+    this.body.bounce.setTo(0.8, 0.8)
   }
 
   release(angle, speed) {
-    if (this.damage < this.minDamage) this.kill();
-
     if (speed < 100) {
-      var scale = 1+this.damage/30
-      game.add.tween(this.scale)
-        .to({x:scale,y:scale}, 500, Phaser.Easing.Linear.None, true)
-        .onComplete.addOnce(this.kill, this);
+      this.blast()
     } else {
       game.math.clamp(speed, this.speed.min, this.speed.max)
-      speed = game.physics.arcade.velocityFromAngle(angle, speed)
-      this.body.velocity.setTo(speed.x, speed.y)
-      this.charging = false;
+      this.shoot(game.physics.arcade.velocityFromAngle(angle, speed))
     }
+    this.charging = false;
+    this.damage(0)
   }
 
-  bounceX(){
-    this.body.velocity.x = -this.body.velocity.x;
+  blast() {
+    this.is_shot = false
+    var s = 0.5+this.health/30
+    this.body.collideWorldBounds = false
+    game.add.tween(this.scale)
+      .to({x:s,y:s}, 500, Phaser.Easing.Quadratic.Out, true)
+      .onComplete.addOnce(() => {
+        this.health = 0
+        game.add.tween(this)
+          .to({alpha: 0}, 800, Phaser.Easing.Cubic.Out, true)
+          .onComplete.addOnce(this.kill, this);
+      }, this);
   }
 
-  bounceY(){
-    this.body.velocity.y = -this.body.velocity.y;
+  shoot(velocity) {
+    this.is_shot = true
+    this.body.collideWorldBounds = true
+    this.body.velocity.setTo(velocity.x, velocity.y)
   }
 
   hit() {
-    this.damage -= 1;
+    this.health -= 1;
+  }
+
+  damage(val) {
+    if (val < 0 && this.health >= this.maxHealth) return
+
+    this.health -= val;
+    if (this.is_shot || this.charging) this.scale.setTo(this.health/80)
+    if(this.charging) return
+    if (this.health <= 8) this.kill();
+    this.alpha = this.health < this.minHealth ? this.health/this.minHealth : 1;
   }
   
   update() {
-    if (this.charging && this.damage < this.maxDamage){
-      this.damage += this.chargingRate;
-    } else {
-      this.damage -= 0.1;
-      if (this.damage <= 8) this.kill();
+    this.angle += (this.health>0) ? this.health/5 : 1
 
-      if (this.x<10 || this.x > game.width-20) {
-        this.x = this.x<10 ? this.x+25 : this.x-25
-        this.bounceX()
-      }
-      if (this.y<10 || this.y > game.height-20) {
-        this.y = this.y<10 ? this.y+25 : this.y-25
-        this.bounceY()
-      }
+    if (this.charging) {
+      this.damage(-1)
+    } else if(this.is_shot){
+      this.damage(0.1)
     }
-    this.alpha = this.damage < 20 ? this.damage/20 : 1;
-    
-    this.scale.setTo(this.damage/80)
   }
 }
 

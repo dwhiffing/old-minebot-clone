@@ -4,8 +4,9 @@ export default {
   preload: function() {
     game.load.image('mine', 'images/mine.png');
     game.load.image('rocket', 'images/rocket.png');
+    game.load.image('bg', 'images/grid.jpg');
     game.load.image('smoke', 'images/smoke.png');
-    game.load.image('bot', 'images/bot.png');
+    game.load.atlasJSONHash('bot', 'images/blue.png', 'images/blue.json');
     game.load.image('shot', 'images/shot.png');
     game.load.spritesheet('explosion', 'images/explosion.png', 128, 128);
 

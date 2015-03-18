@@ -85,33 +85,87 @@ var Bot = (function (_Phaser$Sprite) {
     _classCallCheck(this, Bot);
 
     _get(Object.getPrototypeOf(Bot.prototype), "constructor", this).call(this, game, x, y, "bot");
-    game.add.existing(this);
-    this.dragPoint = {};
-    this.dragOffset = {};
-    this.dragStart = {};
+
     this.anchor.setTo(0.5, 0.5);
     game.physics.enable(this, Phaser.Physics.ARCADE);
+
+    this.num_frames = 21;
+    this.animations.add("life");
+    this.animations.play("life", 0);
+
+    this.history = [];
+    this.drag = {
+      point: Phaser.Point(),
+      offset: Phaser.Point(),
+      start: Phaser.Point()
+    };
+
     this.is_mobile = game.device.touch;
     this.pointer = this.is_mobile ? game.input.pointer1 : game.input.activePointer;
     this.target = this.is_mobile ? { x: x, y: y } : this.pointer;
-    this.history = [];
-    this.health = 100;
+
+    this.max_health = 100;
     this.lives = 5;
     this.score = 0;
-    this.damage(0);
 
-    if (this.is_mobile) {
-      game.input.onDown.add(this.move, this);
-      game.input.onUp.add(this.stopMoving, this);
-    } else {
-      game.input.onDown.add(this.chargeShot, this);
-      game.input.onUp.add(this.releaseShot, this);
-    }
+    game.input.onDown.add(this.move, this);
+    game.input.onUp.add(this.stopMoving, this);
+
+    game.add.existing(this);
+    this.reset(x, y, this.max_health, false);
   }
 
   _inherits(Bot, _Phaser$Sprite);
 
   _createClass(Bot, {
+    update: {
+      value: function update() {
+        if (!this.alive) {
+          return;
+        }if (this.currentShot) {
+          var shot_dist = this.getCurrentSpeed() > 100 ? 24 : 0;
+          var angle = game.physics.arcade.velocityFromAngle(this.getCurrentAngle(), shot_dist);
+          this.currentShot.position.set(this.x + angle.x, this.y + angle.y);
+        }
+
+        if (this.moving) {
+          Phaser.Point.subtract(this.drag.point, this.pointer, this.drag.offset);
+          Phaser.Point.subtract(this.drag.start, this.drag.offset, this.target);
+        }
+
+        this.history.push({ x: this.x, y: this.y });
+        if (this.history.length > 10) this.history.shift();
+
+        this.body.angularVelocity *= 0.97;
+        this.body.angularVelocity += this.getCurrentSpeed() / 20;
+        if (this.body.angularVelocity > 1200) this.body.angularVelocity = 1200;
+
+        this.position.set(this.target.x, this.target.y);
+      }
+    },
+    move: {
+      value: function move(pointer) {
+        if (this.is_mobile && pointer.x < game.width / 2.5) {
+          if (!this.moving) {
+            this.moving = true;
+            this.movementPointer = pointer.id;
+            this.drag.point.set(this.pointer);
+            this.drag.start.set(this.position);
+          }
+        } else {
+          this.chargeShot(pointer);
+        }
+      }
+    },
+    stopMoving: {
+      value: function stopMoving(pointer) {
+        if (this.is_mobile && this.movementPointer == pointer.id) {
+          this.moving = false;
+        } else {
+          this.releaseShot();
+        }
+      }
+    },
     chargeShot: {
       value: function chargeShot(pointer) {
         var _this = this;
@@ -123,9 +177,56 @@ var Bot = (function (_Phaser$Sprite) {
             game.mines.get(_this.x, _this.y);
           } else {
             _this.currentShot = new Shot(_this.x, _this.y);
-            _this.currentShot.x = _this.x;
-            _this.currentShot.y = _this.y;
+            _this.currentShot.position.set(_this.x, _this.y);
           }
+        });
+      }
+    },
+    releaseShot: {
+      value: function releaseShot() {
+        if (!this.currentShot) {
+          return;
+        }this.currentShot.release(this.getCurrentAngle(), this.getCurrentSpeed());
+        this.currentShot = null;
+      }
+    },
+    damage: {
+      value: function damage(val) {
+        if (!this.alive || this.invincible) {
+          return;
+        }_get(Object.getPrototypeOf(Bot.prototype), "damage", this).call(this, val);
+        this.animations.frame = this.num_frames - Math.ceil(this.health / (this.max_health / this.num_frames));
+      }
+    },
+    kill: {
+      value: function kill() {
+        var _this = this;
+
+        if (this.lives < 1) game.ui.resetWaves();
+        game.blasts.get(this.x, this.y, 1);
+        game.lives_text.text = "lives " + --this.lives;
+        game.time.events.add(1000, function () {
+          _this.reset(game.width / 2, game.height / 2, _this.max_health);
+        });
+        _get(Object.getPrototypeOf(Bot.prototype), "kill", this).call(this);
+      }
+    },
+    reset: {
+      value: function reset(x, y) {
+        var _this = this;
+
+        var health = arguments[2] === undefined ? this.max_health : arguments[2];
+        var invuln = arguments[3] === undefined ? true : arguments[3];
+
+        _get(Object.getPrototypeOf(Bot.prototype), "reset", this).call(this, x, y, health);
+        if (!invuln) {
+          return;
+        }this.alpha = 0.5;
+        this.invincible = true;
+        game.time.events.add(2500, function () {
+          _this.alpha = 1;
+          _this.invincible = false;
+          _this.damage(0);
         });
       }
     },
@@ -149,114 +250,6 @@ var Bot = (function (_Phaser$Sprite) {
         var dy = last.y - this.y;
         return Math.sqrt(dx * dx + dy * dy) * 4;
       }
-    },
-    releaseShot: {
-      value: function releaseShot() {
-        if (!this.currentShot) {
-          return;
-        }this.currentShot.release(this.getCurrentAngle(), this.getCurrentSpeed());
-        this.currentShot = null;
-      }
-    },
-    move: {
-      value: function move(pointer) {
-        if (pointer.x < game.width / 2.5) {
-          if (!this.moving) {
-            this.movementPointer = pointer.id;
-            this.dragPoint.x = this.pointer.x;
-            this.dragPoint.y = this.pointer.y;
-            this.dragStart.x = this.x;
-            this.dragStart.y = this.y;
-            this.moving = true;
-          }
-        } else {
-          this.chargeShot(pointer);
-        }
-      }
-    },
-    stopMoving: {
-      value: function stopMoving(pointer) {
-        if (this.movementPointer == pointer.id) {
-          this.moving = false;
-        } else {
-          this.releaseShot();
-        }
-      }
-    },
-    damage: {
-      value: function damage(dam) {
-        var _this = this;
-
-        if (!this.alive || this.invincible) {
-          return;
-        }this.health -= dam;
-        var color_string = "rgba(" + Math.floor(200 - (20 - this.health / 2)) + "," + (200 - (200 - this.health * 2)) + "," + (200 - (200 - this.health * 2)) + ")";
-        this.scale.setTo(1, 1);
-
-        if (this.health <= 0) {
-          var blast = game.blasts.get(this.x, this.y);
-          if (this.lives < 1) {
-            this.lives = 5;
-            game.wave_num = 1;
-            game.wave_text.text = "wave 1";
-            game.left_text.text = "enemies 0";
-            game.wave_timer = 3;
-            game.wave_in_progress = true;
-            game.bot.score = 0;
-            game.score_text.text = "score 0";
-            game.rockets.callAll("kill");
-          }
-          this.lives--;
-          game.lives_text.text = "lives " + this.lives;
-          blast.scale.setTo(1, 1);
-          this.kill();
-          game.time.events.add(300, function () {
-            _this.reset(game.width / 2, game.height / 2, 100);
-          });
-        }
-      }
-    },
-    reset: {
-      value: function reset(x, y, health) {
-        var _this = this;
-
-        _get(Object.getPrototypeOf(Bot.prototype), "reset", this).call(this, x, y, health);
-        this.damage(0);
-        this.alpha = 0.5;
-        this.invincible = true;
-        game.time.events.add(2500, function () {
-          _this.alpha = 1;
-          _this.invincible = false;
-          _this.damage(0);
-        });
-      }
-    },
-    update: {
-      value: function update() {
-        if (!this.alive) {
-          return;
-        }this.body.angularVelocity *= 0.97;
-        if (this.currentShot) {
-          var shot_dist = this.getCurrentSpeed() > 100 ? 24 : 0;
-          var angle = game.physics.arcade.velocityFromAngle(this.getCurrentAngle(), shot_dist);
-          this.currentShot.x = this.x + angle.x;
-          this.currentShot.y = this.y + angle.y;
-        }
-        if (this.moving) {
-          this.dragOffset.x = this.dragPoint.x - this.pointer.x;
-          this.dragOffset.y = this.dragPoint.y - this.pointer.y;
-          this.target.x = this.dragStart.x - this.dragOffset.x * 2;
-          this.target.y = this.dragStart.y - this.dragOffset.y * 2;
-        }
-        this.history.push({ x: this.x, y: this.y });
-        if (this.history.length > 10) {
-          this.history.shift();
-        }
-        this.body.angularVelocity += this.getCurrentSpeed() / 20;
-        if (this.body.angularVelocity > 1200) this.body.angularVelocity = 1200;
-        this.x = this.target.x;
-        this.y = this.target.y;
-      }
     }
   });
 
@@ -265,7 +258,68 @@ var Bot = (function (_Phaser$Sprite) {
 
 module.exports = Bot;
 
-},{"./Mine.js":"/Users/danielwhiffing/Dropbox/js/phaser/minebot/src/entities/Mine.js","./Shot.js":"/Users/danielwhiffing/Dropbox/js/phaser/minebot/src/entities/Shot.js"}],"/Users/danielwhiffing/Dropbox/js/phaser/minebot/src/entities/Mine.js":[function(require,module,exports){
+},{"./Mine.js":"/Users/danielwhiffing/Dropbox/js/phaser/minebot/src/entities/Mine.js","./Shot.js":"/Users/danielwhiffing/Dropbox/js/phaser/minebot/src/entities/Shot.js"}],"/Users/danielwhiffing/Dropbox/js/phaser/minebot/src/entities/Interface.js":[function(require,module,exports){
+"use strict";
+
+var _createClass = (function () { function defineProperties(target, props) { for (var key in props) { var prop = props[key]; prop.configurable = true; if (prop.value) prop.writable = true; } Object.defineProperties(target, props); } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; })();
+
+var _classCallCheck = function (instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } };
+
+var Interface = (function () {
+  function Interface() {
+    _classCallCheck(this, Interface);
+
+    game.bg = game.add.sprite(0, 0, "bg");
+
+    game.lives_text = game.add.text(10, game.height - 35, "lives 5", { font: "13pt Arial", fill: "#ee2c63" });
+    game.lives_text.anchor.setTo(0, 0.5);
+    game.score_text = game.add.text(10, game.height - 10, "score 0", { font: "13pt Arial", fill: "#ee2c63" });
+    game.score_text.anchor.setTo(0, 0.5);
+    game.wave_text = game.add.text(game.width - 20, game.height - 35, "wave 1", { font: "13pt Arial", fill: "#ee2c63", align: "right" });
+    game.wave_text.anchor.setTo(1, 0.5);
+    game.left_text = game.add.text(game.width - 20, game.height - 10, "enemies 0", { font: "13pt Arial", fill: "#ee2c63", align: "right" });
+    game.left_text.anchor.setTo(1, 0.5);
+
+    game.wave_num = 1;
+    game.wave_timer = 10;
+    game.wave_in_progress = true;
+    this.something = true;
+  }
+
+  _createClass(Interface, {
+    nextWave: {
+      value: function nextWave() {
+        game.wave_timer = 10 + game.wave_num * 2;
+        this.something = true;
+        game.time.events.add(2000, function () {
+          game.wave_num++;
+          game.wave_text.text = "wave " + game.wave_num;
+          game.wave_in_progress = true;
+          game.rockets.updateForWave(game.wave_num);
+        });
+      }
+    },
+    resetWaves: {
+      value: function resetWaves() {
+        game.bot.lives = 5;
+        game.wave_num = 1;
+        game.wave_text.text = "wave 1";
+        game.left_text.text = "enemies 0";
+        game.wave_timer = 3;
+        game.wave_in_progress = true;
+        game.bot.score = 0;
+        game.score_text.text = "score 0";
+        game.rockets.callAll("kill");
+      }
+    }
+  });
+
+  return Interface;
+})();
+
+module.exports = Interface;
+
+},{}],"/Users/danielwhiffing/Dropbox/js/phaser/minebot/src/entities/Mine.js":[function(require,module,exports){
 "use strict";
 
 var _createClass = (function () { function defineProperties(target, props) { for (var key in props) { var prop = props[key]; prop.configurable = true; if (prop.value) prop.writable = true; } Object.defineProperties(target, props); } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; })();
@@ -403,30 +457,19 @@ var Rocket = (function (_Phaser$Sprite) {
     _classCallCheck(this, Rocket);
 
     _get(Object.getPrototypeOf(Rocket.prototype), "constructor", this).call(this, game, x, y, "rocket");
-
     this.anchor.setTo(0.5, 0.5);
-    game.physics.enable(this, Phaser.Physics.ARCADE);
-    this.target = game.bot;
-    this.math = game.math;
-    this.didhit = false;
-    this.maxSpeed = 250;
-    this.turnRate = 5;
     this.scale.setTo(1.5, 1.5);
-    this.sleepTimer = 100;
-    this.sleeping = false;
 
+    this.maxSpeed = 250;
+    this.minSpeed = 2;
+    this.turnRate = 5;
     this.wobble = 1;
-    this.currentSpeed = this.maxSpeed;
 
-    this.sleepFreq = game.rnd.integerInRange(3000, 8000);
-    this.sleepTime = game.rnd.integerInRange(500, 2000);
-    this.timer = game.time.create(false);
-    this.timer.start();
-    this.sleep();
+    game.physics.enable(this, Phaser.Physics.ARCADE);
 
     game.add.tween(this).to({ wobble: -this.wobble }, 250, Phaser.Easing.Sinusoidal.InOut, true, 0, Number.POSITIVE_INFINITY, true);
 
-    this.smokeEmitter = new SmokeEmitter(game);
+    this.smoke_emitter = new SmokeEmitter(game);
   }
 
   _inherits(Rocket, _Phaser$Sprite);
@@ -434,26 +477,26 @@ var Rocket = (function (_Phaser$Sprite) {
   _createClass(Rocket, {
     updateEmitter: {
       value: function updateEmitter() {
-        this.smokeEmitter.on = this.alive && !this.sleeping;
-        this.smokeEmitter.x = this.x;
-        this.smokeEmitter.y = this.y;
+        this.smoke_emitter.on = this.alive && !this.sleeping;
+        this.smoke_emitter.x = this.x;
+        this.smoke_emitter.y = this.y;
       }
     },
     getFlockAngle: {
       value: function getFlockAngle(distance) {
-        var avoidAngle = 0;
+        var avoid_angle = 0;
         this.parent.forEachAlive(function (rocket) {
-          if (this == rocket || avoidAngle !== 0) return;
+          if (this == rocket || avoid_angle !== 0) return;
 
           var distance = game.math.distance(this.x, this.y, rocket.x, rocket.y);
           if (distance < 30) {
-            avoidAngle = Math.PI / 2;
-            if (game.math.chanceRoll(50)) avoidAngle *= -1;
+            avoid_angle = Math.PI / 2;
+            if (game.math.chanceRoll(50)) avoid_angle *= -1;
           }
         }, this);
 
-        if (distance < 100) avoidAngle /= 2;
-        return avoidAngle;
+        if (distance < 100) avoid_angle /= 2;
+        return avoid_angle;
       }
     },
     getWobble: {
@@ -461,8 +504,8 @@ var Rocket = (function (_Phaser$Sprite) {
         return game.math.degToRad(this.wobble);
       }
     },
-    rotationThrottle: {
-      value: function rotationThrottle(angle) {
+    turnTowardsAngle: {
+      value: function turnTowardsAngle(angle) {
         if (this.rotation === angle) {
           return;
         } // Gradually aim the Rocket towards the target angle
@@ -472,47 +515,10 @@ var Rocket = (function (_Phaser$Sprite) {
         if (delta > Math.PI) delta -= Math.PI * 2;
         if (delta < -Math.PI) delta += Math.PI * 2;
 
-        if (delta > 0) {
-          this.angle += this.turnRate;
-        } else {
-          this.angle -= this.turnRate;
-        }
-        // Just set angle to target angle if they are close
-        if (Math.abs(delta) < game.math.degToRad(this.turnRate)) {
-          this.rotation = angle;
-        }
-      }
-    },
-    kill: {
-      value: function kill() {
-        if (!this.didhit) {
-          game.bot.score += 100;
-          game.score_text.text = "score " + game.bot.score;
-        }
-        this.didhit = false;
-        game.blasts.get(this.x, this.y);
-        _get(Object.getPrototypeOf(Rocket.prototype), "kill", this).call(this);
-        game.left_text.text = "enemies " + (game.wave_timer + game.rockets.countLiving());
-      }
-    },
-    hit: {
-      value: function hit() {
-        game.bot.damage(15);
-        this.didhit = true;
-        this.kill();
-      }
-    },
-    sleep: {
-      value: function sleep() {
-        var _this = this;
+        this.angle += delta > 0 ? this.turnRate : -this.turnRate;
 
-        this.sleeping = true;
-        this.timer.add(this.sleepTime, function () {
-          _this.sleeping = false;
-          _this.timer.add(_this.sleepFreq, function () {
-            return _this.sleep();
-          });
-        });
+        // Just set angle to target angle if they are close
+        if (Math.abs(delta) < game.math.degToRad(this.turnRate)) this.rotation = angle;
       }
     },
     update: {
@@ -520,34 +526,78 @@ var Rocket = (function (_Phaser$Sprite) {
         this.updateEmitter();
         if (!this.alive) {
           return;
-        }var targetAngle = game.math.angleBetween(this.x, this.y, this.target.x, this.target.y);
-        var distance = game.math.distance(this.x, this.y, this.target.x, this.target.y);
+        }var target_angle = game.math.angleBetween(this.x, this.y, this.target.x, this.target.y);
+        var target_dist = game.math.distance(this.x, this.y, this.target.x, this.target.y);
 
-        if (distance < 125) {
-          this.timer.pause();
-          this.currentSpeed = this.maxSpeed * (distance / 100) - 15;
+        if (target_dist < 125) {
+          this.sleep_timer.pause();
+          this.current_speed = this.maxSpeed * (target_dist / 100) - 15;
         } else {
-          this.timer.resume();
-          targetAngle += this.getWobble();
-          this.currentSpeed = this.maxSpeed;
+          this.sleep_timer.resume();
+          target_angle += this.getWobble();
+          this.current_speed = this.maxSpeed;
         }
 
-        targetAngle += this.getFlockAngle(distance);
-        this.rotationThrottle(targetAngle);
+        target_angle += this.getFlockAngle(target_dist);
+        this.turnTowardsAngle(target_angle);
 
         if (this.sleeping) {
           this.turnRate *= 0.96;
-          this.body.velocity.x *= 0.96;
-          this.body.velocity.y *= 0.96;
-          this.timer.resume();
+          this.body.velocity.multiply(0.96, 0.96);
+          this.sleep_timer.resume();
         } else {
           this.turnRate = 5;
-          if (this.currentSpeed < 2) this.currentSpeed = 2;
-          this.body.velocity.x = Math.cos(this.rotation) * this.currentSpeed;
-          this.body.velocity.y = Math.sin(this.rotation) * this.currentSpeed;
+          if (this.current_speed < this.minSpeed) this.current_speed = this.minSpeed;
+          this.body.velocity.x = Math.cos(this.rotation) * this.current_speed;
+          this.body.velocity.y = Math.sin(this.rotation) * this.current_speed;
         }
 
-        if (distance < 30 && game.bot.alive) this.hit();
+        if (target_dist < 30 && this.target.alive) this.hitTarget();
+      }
+    },
+    hitTarget: {
+      value: function hitTarget() {
+        game.bot.damage(15);
+        this.hit_target = true;
+        this.kill();
+      }
+    },
+    kill: {
+      value: function kill() {
+        if (!this.hit_target) {
+          game.bot.score += 100;
+          game.score_text.text = "score " + game.bot.score;
+        }
+        this.hit_target = false;
+        game.blasts.get(this.x, this.y);
+        game.left_text.text = "enemies " + (game.wave_timer + game.rockets.countLiving());
+        _get(Object.getPrototypeOf(Rocket.prototype), "kill", this).call(this);
+      }
+    },
+    reset: {
+      value: function reset(x, y) {
+        this.target = game.bot;
+        this.hit_target = false;
+
+        this.sleeping = false;
+        this.sleep_frequency = game.rnd.integerInRange(3000, 8000);
+        this.sleep_duration = game.rnd.integerInRange(500, 2000);
+        this.sleep_timer = game.time.create(false);
+        this.sleep_timer.start();
+        _get(Object.getPrototypeOf(Rocket.prototype), "reset", this).call(this, x, y, 10);
+      }
+    },
+    sleep: {
+      value: function sleep() {
+        var _this = this;
+
+        this.sleeping = true;
+        this.sleep_timer.add(this.sleep_duration, function () {
+          _this.sleeping = false;
+          _this.sleep_timer.add(_this.sleep_frequency, function () {
+            return _this.sleep();
+          });
+        });
       }
     }
   });
@@ -593,7 +643,7 @@ var RocketGroup = (function (_Phaser$Group) {
     get: {
       value: function get(x, y) {
         var rocket = this.getFirstDead() || this.create();
-        rocket.reset(x, y, 50);
+        rocket.reset(x, y);
         return rocket;
       }
     },
@@ -639,14 +689,17 @@ var Shot = (function (_Phaser$Sprite) {
 
     _get(Object.getPrototypeOf(Shot.prototype), "constructor", this).call(this, game, x, y, "shot");
     this.charging = true;
-    this.damage = 5;
-    this.minDamage = 20;
-    this.maxDamage = 40;
+    this.health = 5;
+    this.scale.setTo(0);
+    this.minHealth = 20;
+    this.maxHealth = 40;
     this.speed = { min: 300, max: 600 };
     this.chargingRate = 0.4;
     game.shotGroup.add(this);
-    this.anchor.setTo(0.5, 0.5);
+    this.anchor.setTo(0.5);
     game.physics.enable(this, Phaser.Physics.ARCADE);
+
+    this.body.bounce.setTo(0.8, 0.8);
   }
 
   _inherits(Shot, _Phaser$Sprite);
@@ -654,54 +707,62 @@ var Shot = (function (_Phaser$Sprite) {
   _createClass(Shot, {
     release: {
       value: function release(angle, speed) {
-        if (this.damage < this.minDamage) this.kill();
-
         if (speed < 100) {
-          var scale = 1 + this.damage / 30;
-          game.add.tween(this.scale).to({ x: scale, y: scale }, 500, Phaser.Easing.Linear.None, true).onComplete.addOnce(this.kill, this);
+          this.blast();
         } else {
           game.math.clamp(speed, this.speed.min, this.speed.max);
-          speed = game.physics.arcade.velocityFromAngle(angle, speed);
-          this.body.velocity.setTo(speed.x, speed.y);
-          this.charging = false;
+          this.shoot(game.physics.arcade.velocityFromAngle(angle, speed));
         }
+        this.charging = false;
+        this.damage(0);
       }
     },
-    bounceX: {
-      value: function bounceX() {
-        this.body.velocity.x = -this.body.velocity.x;
+    blast: {
+      value: function blast() {
+        var _this = this;
+
+        this.is_shot = false;
+        var s = 0.5 + this.health / 30;
+        this.body.collideWorldBounds = false;
+        game.add.tween(this.scale).to({ x: s, y: s }, 500, Phaser.Easing.Quadratic.Out, true).onComplete.addOnce(function () {
+          _this.health = 0;
+          game.add.tween(_this).to({ alpha: 0 }, 800, Phaser.Easing.Cubic.Out, true).onComplete.addOnce(_this.kill, _this);
+        }, this);
       }
     },
-    bounceY: {
-      value: function bounceY() {
-        this.body.velocity.y = -this.body.velocity.y;
+    shoot: {
+      value: function shoot(velocity) {
+        this.is_shot = true;
+        this.body.collideWorldBounds = true;
+        this.body.velocity.setTo(velocity.x, velocity.y);
       }
     },
     hit: {
       value: function hit() {
-        this.damage -= 1;
+        this.health -= 1;
+      }
+    },
+    damage: {
+      value: function damage(val) {
+        if (val < 0 && this.health >= this.maxHealth) {
+          return;
+        }this.health -= val;
+        if (this.is_shot || this.charging) this.scale.setTo(this.health / 80);
+        if (this.charging) {
+          return;
+        }if (this.health <= 8) this.kill();
+        this.alpha = this.health < this.minHealth ? this.health / this.minHealth : 1;
       }
     },
     update: {
       value: function update() {
-        if (this.charging && this.damage < this.maxDamage) {
-          this.damage += this.chargingRate;
-        } else {
-          this.damage -= 0.1;
-          if (this.damage <= 8) this.kill();
+        this.angle += this.health > 0 ? this.health / 5 : 1;
 
-          if (this.x < 10 || this.x > game.width - 20) {
-            this.x = this.x < 10 ? this.x + 25 : this.x - 25;
-            this.bounceX();
-          }
-          if (this.y < 10 || this.y > game.height - 20) {
-            this.y = this.y < 10 ? this.y + 25 : this.y - 25;
-            this.bounceY();
-          }
+        if (this.charging) {
+          this.damage(-1);
+        } else if (this.is_shot) {
+          this.damage(0.1);
         }
-        this.alpha = this.damage < 20 ? this.damage / 20 : 1;
-
-        this.scale.setTo(this.damage / 80);
       }
     }
   });
@@ -777,8 +838,9 @@ module.exports = {
   preload: function preload() {
     game.load.image("mine", "images/mine.png");
     game.load.image("rocket", "images/rocket.png");
+    game.load.image("bg", "images/grid.jpg");
     game.load.image("smoke", "images/smoke.png");
-    game.load.image("bot", "images/bot.png");
+    game.load.atlasJSONHash("bot", "images/blue.png", "images/blue.json");
     game.load.image("shot", "images/shot.png");
     game.load.spritesheet("explosion", "images/explosion.png", 128, 128);
 
@@ -799,33 +861,30 @@ var RocketGroup = _interopRequire(require("../entities/RocketGroup.js"));
 
 var BlastGroup = _interopRequire(require("../entities/BlastGroup.js"));
 
+var Interface = _interopRequire(require("../entities/Interface.js"));
+
 var MineGroup = _interopRequire(require("../entities/MineGroup.js"));
 
 var Bot = _interopRequire(require("../entities/Bot.js"));
 
 module.exports = {
   create: function create() {
-    game.stage.backgroundColor = 0;
+    game.setVec = function (one, two) {
+      one.x = two.x;one.y = two.y;
+    };
+    game.subVec = function (one, two) {
+      return { x: one.x - two.x, y: one.y - two.y };
+    };
+    game.addVec = function (one, two) {
+      return { x: one.x + two.x, y: one.y + two.y };
+    };
 
-    game.lives_text = game.add.text(10, game.height - 35, "lives 5", { font: "13pt Arial", fill: "#ee2c63" });
-    game.lives_text.anchor.setTo(0, 0.5);
-    game.score_text = game.add.text(10, game.height - 10, "score 0", { font: "13pt Arial", fill: "#ee2c63" });
-    game.score_text.anchor.setTo(0, 0.5);
-    game.wave_text = game.add.text(game.width - 20, game.height - 35, "wave 1", { font: "13pt Arial", fill: "#ee2c63", align: "right" });
-    game.wave_text.anchor.setTo(1, 0.5);
-    game.left_text = game.add.text(game.width - 20, game.height - 10, "enemies 0", { font: "13pt Arial", fill: "#ee2c63", align: "right" });
-    game.left_text.anchor.setTo(1, 0.5);
-
+    game.ui = new Interface();
     game.shotGroup = game.add.group();
-    game.mines = new MineGroup(game);
+    game.mines = new MineGroup();
     game.bot = new Bot(game.width / 2, game.height / 2);
-    game.rockets = new RocketGroup(game);
-    game.blasts = new BlastGroup(game);
-
-    game.wave_num = 1;
-    game.wave_timer = 10;
-    game.wave_in_progress = true;
-    this.something = true;
+    game.rockets = new RocketGroup();
+    game.blasts = new BlastGroup();
   },
 
   update: function update() {
@@ -836,28 +895,17 @@ module.exports = {
       game.wave_in_progress = false;
       this.something = false;
       if (game.rockets.countLiving() === 0 && this.something === false) {
-        this.nextWave();
+        game.ui.nextWave();
       }
     }
     game.physics.arcade.overlap(game.rockets, game.shotGroup, this.test, null, this);
   },
 
   test: function test(rocket, shot) {
-    rocket.damage(shot.damage);
+    rocket.damage(shot.health);
     shot.hit(rocket);
-  },
-
-  nextWave: function nextWave() {
-    game.wave_timer = 10 + game.wave_num * 2;
-    this.something = true;
-    game.time.events.add(2000, function () {
-      game.wave_num++;
-      game.wave_text.text = "wave " + game.wave_num;
-      game.wave_in_progress = true;
-      game.rockets.updateForWave(game.wave_num);
-    });
   },
 
   render: function render() {} };
 
-},{"../entities/BlastGroup.js":"/Users/danielwhiffing/Dropbox/js/phaser/minebot/src/entities/BlastGroup.js","../entities/Bot.js":"/Users/danielwhiffing/Dropbox/js/phaser/minebot/src/entities/Bot.js","../entities/MineGroup.js":"/Users/danielwhiffing/Dropbox/js/phaser/minebot/src/entities/MineGroup.js","../entities/RocketGroup.js":"/Users/danielwhiffing/Dropbox/js/phaser/minebot/src/entities/RocketGroup.js"}]},{},["./src/game.js"]);
+},{"../entities/BlastGroup.js":"/Users/danielwhiffing/Dropbox/js/phaser/minebot/src/entities/BlastGroup.js","../entities/Bot.js":"/Users/danielwhiffing/Dropbox/js/phaser/minebot/src/entities/Bot.js","../entities/Interface.js":"/Users/danielwhiffing/Dropbox/js/phaser/minebot/src/entities/Interface.js","../entities/MineGroup.js":"/Users/danielwhiffing/Dropbox/js/phaser/minebot/src/entities/MineGroup.js","../entities/RocketGroup.js":"/Users/danielwhiffing/Dropbox/js/phaser/minebot/src/entities/RocketGroup.js"}]},{},["./src/game.js"]);

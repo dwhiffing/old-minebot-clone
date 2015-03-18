@@ -4,62 +4,51 @@ class Rocket extends Phaser.Sprite {
 
   constructor(game, x, y) {
     super(game, x, y, 'rocket');
-
     this.anchor.setTo(0.5, 0.5);
-    game.physics.enable(this, Phaser.Physics.ARCADE);
-    this.target = game.bot;
-    this.math = game.math;
-    this.didhit=false;
-    this.maxSpeed = 250;
-    this.turnRate = 5;
-    this.scale.setTo(1.5,1.5)
-    this.sleepTimer = 100;
-    this.sleeping = false;
-
-    this.wobble = 1;
-    this.currentSpeed = this.maxSpeed;
+    this.scale.setTo(1.5,1.5);
     
-    this.sleepFreq = game.rnd.integerInRange(3000,8000)    
-    this.sleepTime = game.rnd.integerInRange(500,2000)    
-    this.timer = game.time.create(false);
-    this.timer.start();
-    this.sleep()
+    this.maxSpeed = 250;
+    this.minSpeed = 2;
+    this.turnRate = 5;
+    this.wobble = 1;
+
+    game.physics.enable(this, Phaser.Physics.ARCADE);
 
     game.add.tween(this).to({ wobble: -this.wobble },
-        250, Phaser.Easing.Sinusoidal.InOut, true, 0,
-        Number.POSITIVE_INFINITY, true
-      );
+      250, Phaser.Easing.Sinusoidal.InOut, true, 0,
+      Number.POSITIVE_INFINITY, true
+    );
 
-    this.smokeEmitter = new SmokeEmitter(game);
+    this.smoke_emitter = new SmokeEmitter(game);
   }
 
   updateEmitter() { 
-    this.smokeEmitter.on = this.alive && !this.sleeping;
-    this.smokeEmitter.x = this.x;
-    this.smokeEmitter.y = this.y;
+    this.smoke_emitter.on = this.alive && !this.sleeping;
+    this.smoke_emitter.x = this.x;
+    this.smoke_emitter.y = this.y;
   }
 
   getFlockAngle(distance) { 
-    var avoidAngle = 0;
+    var avoid_angle = 0;
     this.parent.forEachAlive(function(rocket) {
-      if (this == rocket || avoidAngle !== 0) return;
+      if (this == rocket || avoid_angle !== 0) return;
 
       var distance = game.math.distance(this.x, this.y, rocket.x, rocket.y);
       if (distance < 30) {
-        avoidAngle = Math.PI/2;
-        if (game.math.chanceRoll(50)) avoidAngle *= -1;
+        avoid_angle = Math.PI/2;
+        if (game.math.chanceRoll(50)) avoid_angle *= -1;
       }
     }, this);
 
-    if(distance < 100) avoidAngle /= 2
-    return avoidAngle
+    if(distance < 100) avoid_angle /= 2
+    return avoid_angle
   }
 
   getWobble() { 
     return game.math.degToRad(this.wobble)
   }
 
-  rotationThrottle(angle) { 
+  turnTowardsAngle(angle) { 
     if (this.rotation === angle) return;
     // Gradually aim the Rocket towards the target angle
     var delta = angle - this.rotation;
@@ -68,75 +57,81 @@ class Rocket extends Phaser.Sprite {
     if (delta > Math.PI) delta -= Math.PI * 2;
     if (delta < -Math.PI) delta += Math.PI * 2;
 
-    if (delta > 0) {
-      this.angle += this.turnRate;
-    } else {
-      this.angle -= this.turnRate;
-    }
+    this.angle += (delta > 0) ? this.turnRate : -this.turnRate;
+
     // Just set angle to target angle if they are close
-    if (Math.abs(delta) < game.math.degToRad(this.turnRate)) {
-      this.rotation = angle;
-    }
+    if (Math.abs(delta) < game.math.degToRad(this.turnRate)) this.rotation = angle;
   }
 
-  kill() {
-    if(!this.didhit) {
-      game.bot.score+=100
-      game.score_text.text = `score ${game.bot.score}`
-    }
-    this.didhit=false;
-    game.blasts.get(this.x, this.y);
-    super.kill()
-    game.left_text.text = `enemies ${game.wave_timer+game.rockets.countLiving()}`
-  }
-
-  hit() {
-    game.bot.damage(15);
-    this.didhit=true;
-    this.kill()
-  }
-
-  sleep() {
-    this.sleeping = true;
-    this.timer.add(this.sleepTime, () => {
-      this.sleeping = false;
-      this.timer.add(this.sleepFreq, () => this.sleep())
-    })
-  }
 
   update() {
     this.updateEmitter();
     if (!this.alive) return
     
-    var targetAngle = game.math.angleBetween(this.x, this.y, this.target.x, this.target.y);
-    var distance = game.math.distance(this.x, this.y, this.target.x, this.target.y);
+    var target_angle = game.math.angleBetween(this.x, this.y, this.target.x, this.target.y);
+    var target_dist = game.math.distance(this.x, this.y, this.target.x, this.target.y);
     
-    if (distance < 125) {
-      this.timer.pause()
-      this.currentSpeed = this.maxSpeed * (distance/100) - 15;
+    if (target_dist < 125) {
+      this.sleep_timer.pause()
+      this.current_speed = this.maxSpeed * (target_dist/100) - 15;
     } else {
-      this.timer.resume()
-      targetAngle += this.getWobble();
-      this.currentSpeed = this.maxSpeed;
+      this.sleep_timer.resume()
+      target_angle += this.getWobble();
+      this.current_speed = this.maxSpeed;
     }
 
-    targetAngle += this.getFlockAngle(distance);
-    this.rotationThrottle(targetAngle);
+    target_angle += this.getFlockAngle(target_dist);
+    this.turnTowardsAngle(target_angle);
     
-    
-    if(this.sleeping) {
+    if (this.sleeping) {
       this.turnRate *= 0.96
-      this.body.velocity.x *= 0.96
-      this.body.velocity.y *= 0.96
-      this.timer.resume()
+      this.body.velocity.multiply(0.96, 0.96)
+      this.sleep_timer.resume()
     } else {
       this.turnRate = 5
-      if (this.currentSpeed < 2) this.currentSpeed = 2;
-      this.body.velocity.x = Math.cos(this.rotation) * this.currentSpeed;
-      this.body.velocity.y = Math.sin(this.rotation) * this.currentSpeed;
+      if (this.current_speed < this.minSpeed) this.current_speed = this.minSpeed;
+      this.body.velocity.x = Math.cos(this.rotation) * this.current_speed;
+      this.body.velocity.y = Math.sin(this.rotation) * this.current_speed;
     }
 
-    if (distance < 30&& game.bot.alive) this.hit();
+    if (target_dist < 30 && this.target.alive) this.hitTarget();
+  }
+
+  hitTarget() {
+    game.bot.damage(15);
+    this.hit_target=true;
+    this.kill()
+  }
+
+  kill() {
+    if(!this.hit_target) {
+      game.bot.score+=100
+      game.score_text.text = `score ${game.bot.score}`
+    }
+    this.hit_target = false;
+    game.blasts.get(this.x, this.y);
+    game.left_text.text = `enemies ${game.wave_timer+game.rockets.countLiving()}`
+    super.kill()
+  }
+
+  reset(x, y) {
+    this.target = game.bot;
+    this.hit_target = false;
+
+    this.sleeping = false;
+    this.sleep_frequency = game.rnd.integerInRange(3000,8000)    
+    this.sleep_duration = game.rnd.integerInRange(500,2000)    
+    this.sleep_timer = game.time.create(false);
+    this.sleep_timer.start();
+    super.reset(x, y, 10)
+  }
+
+  sleep() {
+    this.sleeping = true;
+    this.sleep_timer.add(this.sleep_duration, () => {
+      this.sleeping = false;
+      this.sleep_timer.add(this.sleep_frequency, () => this.sleep())
+    })
   }
 }
 

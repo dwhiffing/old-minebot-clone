@@ -5,40 +5,126 @@ class Bot extends Phaser.Sprite {
 
   constructor(x, y) {
     super(game, x, y, 'bot');
-    game.add.existing(this)
-    this.dragPoint = {};
-    this.dragOffset = {};
-    this.dragStart = {};
+
     this.anchor.setTo(0.5, 0.5);
     game.physics.enable(this, Phaser.Physics.ARCADE);
+
+    this.num_frames = 21
+    this.animations.add('life')
+    this.animations.play('life', 0)
+
+    this.history = []
+    this.drag = {
+      point: Phaser.Point(), 
+      offset: Phaser.Point(), 
+      start: Phaser.Point()
+    }
+
     this.is_mobile = game.device.touch
     this.pointer = this.is_mobile ? game.input.pointer1 : game.input.activePointer;
     this.target = this.is_mobile ? {x,y} : this.pointer;
-    this.history = []
-    this.health = 100
-    this.lives = 5;
-    this.score = 0;
-    this.damage(0)
 
-    if (this.is_mobile) {
-      game.input.onDown.add(this.move, this);
-      game.input.onUp.add(this.stopMoving, this);
+    this.max_health = 100
+    this.lives = 5;
+    this.score = 0
+
+    game.input.onDown.add(this.move, this);
+    game.input.onUp.add(this.stopMoving, this);
+    
+    game.add.existing(this)
+    this.reset(x, y, this.max_health, false)
+  }
+
+  update() {
+    if (!this.alive) return 
+    
+    if(this.currentShot) {
+      var shot_dist = (this.getCurrentSpeed() > 100) ? 24 : 0
+      var angle = game.physics.arcade.velocityFromAngle(this.getCurrentAngle(), shot_dist)
+      this.currentShot.position.set(this.x + angle.x, this.y + angle.y)
+    }
+    
+    if(this.moving){
+      Phaser.Point.subtract(this.drag.point, this.pointer, this.drag.offset)
+      Phaser.Point.subtract(this.drag.start, this.drag.offset, this.target)
+    }
+    
+    this.history.push({x: this.x, y: this.y})
+    if(this.history.length > 10) this.history.shift()
+    
+    this.body.angularVelocity *= 0.97
+    this.body.angularVelocity += this.getCurrentSpeed()/20
+    if (this.body.angularVelocity> 1200) this.body.angularVelocity=1200
+
+    this.position.set(this.target.x, this.target.y)
+  }
+
+  move(pointer) {
+    if (this.is_mobile && pointer.x < game.width/2.5){
+      if (!this.moving) {
+        this.moving = true;
+        this.movementPointer = pointer.id
+        this.drag.point.set(this.pointer)
+        this.drag.start.set(this.position)
+      }
     } else {
-      game.input.onDown.add(this.chargeShot, this);
-      game.input.onUp.add(this.releaseShot, this);
+      this.chargeShot(pointer);
     }
   }
-  
+
+  stopMoving(pointer) {
+    if (this.is_mobile && this.movementPointer == pointer.id) {
+      this.moving = false;
+    } else {
+      this.releaseShot()
+    }
+  }
+
   chargeShot(pointer) {
-    if (!this.alive) return 
+    if (!this.alive) return
+
     game.time.events.add(200, ()=>{
       if(!pointer.isDown) {
         game.mines.get(this.x, this.y)
       } else {
         this.currentShot = new Shot(this.x, this.y)
-        this.currentShot.x = this.x
-        this.currentShot.y = this.y
+        this.currentShot.position.set(this.x, this.y)
       }
+    })
+  }
+
+  releaseShot() {
+    if(!this.currentShot) return;
+    
+    this.currentShot.release(this.getCurrentAngle(), this.getCurrentSpeed())
+    this.currentShot = null;
+  }
+  
+  damage(val) {
+    if (!this.alive || this.invincible) return
+    super.damage(val)
+    this.animations.frame = this.num_frames-Math.ceil(this.health/(this.max_health/this.num_frames))
+  }
+
+  kill() {
+    if (this.lives < 1) game.ui.resetWaves();
+    game.blasts.get(this.x, this.y, 1);
+    game.lives_text.text = `lives ${--this.lives}`
+    game.time.events.add(1000, () => {
+      this.reset(game.width/2,game.height/2, this.max_health)
+    })
+    super.kill()
+  }
+
+  reset(x, y, health=this.max_health, invuln=true) {
+    super.reset(x, y, health)
+    if (!invuln) return
+    this.alpha = 0.5;
+    this.invincible = true;
+    game.time.events.add(2500,()=>{
+      this.alpha = 1;
+      this.invincible = false;
+      this.damage(0)
     })
   }
 
@@ -58,102 +144,6 @@ class Bot extends Phaser.Sprite {
     var dx = last.x - this.x;
     var dy = last.y - this.y;
     return Math.sqrt(dx*dx+dy*dy)*4;
-  }
-
-  releaseShot() {
-    if(!this.currentShot) return;
-    this.currentShot.release(this.getCurrentAngle(), this.getCurrentSpeed())
-    this.currentShot = null;
-  }
-
-  move(pointer) {
-    if (pointer.x < game.width/2.5){
-      if (!this.moving) {
-        this.movementPointer = pointer.id
-        this.dragPoint.x = this.pointer.x;
-        this.dragPoint.y = this.pointer.y;
-        this.dragStart.x = this.x;
-        this.dragStart.y = this.y;
-        this.moving = true;
-      }
-    } else {
-      this.chargeShot(pointer);
-    }
-  }
-
-  stopMoving(pointer) {
-    if (this.movementPointer == pointer.id) {
-      this.moving = false;
-    } else {
-      this.releaseShot()
-    }
-  }
-  
-  damage(dam) {
-    if(!this.alive || this.invincible)return
-    this.health -= dam
-    var color_string = `rgba(${Math.floor(200-(20-this.health/2))},${200-(200-this.health*2)},${200-(200-this.health*2)})`
-    this.scale.setTo(1,1)
-
-    if (this.health <= 0) {
-      var blast = game.blasts.get(this.x, this.y);
-      if (this.lives < 1) {
-        this.lives = 5
-        game.wave_num = 1;
-        game.wave_text.text = 'wave 1'
-        game.left_text.text = 'enemies 0'
-        game.wave_timer = 3;
-        game.wave_in_progress = true;
-        game.bot.score=0
-        game.score_text.text = `score 0`
-        game.rockets.callAll("kill")
-      }
-      this.lives--
-      game.lives_text.text = `lives ${this.lives}`
-      blast.scale.setTo(1,1)
-      this.kill();
-      game.time.events.add(300,()=>{
-        this.reset(game.width/2,game.height/2, 100)
-      })
-    }
-  }
-
-  reset(x,y,health) {
-    super.reset(x,y,health)
-    this.damage(0)
-    this.alpha = 0.5;
-    this.invincible = true;
-    game.time.events.add(2500,()=>{
-      this.alpha = 1;
-      this.invincible = false;
-      this.damage(0)
-    })
-  }
-
-  update() {
-    if (!this.alive) return 
-    this.body.angularVelocity *= 0.97
-    if(this.currentShot) {
-      var shot_dist = (this.getCurrentSpeed() > 100) ? 24 : 0
-      var angle = game.physics.arcade.velocityFromAngle(this.getCurrentAngle(), shot_dist)
-      this.currentShot.x = this.x + angle.x;
-      this.currentShot.y = this.y + angle.y;
-    }
-    if(this.moving){
-      this.dragOffset.x = this.dragPoint.x - this.pointer.x;
-      this.dragOffset.y = this.dragPoint.y - this.pointer.y;
-      this.target.x = this.dragStart.x - this.dragOffset.x*2;
-      this.target.y = this.dragStart.y - this.dragOffset.y*2;
-    }
-    this.history.push({x: this.x, y: this.y})
-    if(this.history.length > 10) {
-      this.history.shift()
-    }
-    this.body.angularVelocity += this.getCurrentSpeed()/20
-    if (this.body.angularVelocity> 1200) this.body.angularVelocity=1200
-    this.x = this.target.x;
-    this.y = this.target.y;
-
   }
 }
 

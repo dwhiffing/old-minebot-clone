@@ -15,7 +15,7 @@ class RocketGroup extends Phaser.Group {
 
   get(x, y) {
     var rocket = this.getFirstDead() || this.create();
-    rocket.reset(x, y, 50);
+    rocket.reset(x, y);
     return rocket;
   }
 
