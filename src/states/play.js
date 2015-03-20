@@ -2,22 +2,14 @@ import RocketGroup from '../entities/RocketGroup.js';
 import BlastGroup from '../entities/BlastGroup.js';
 import Interface from '../entities/Interface.js';
 import MineGroup from '../entities/MineGroup.js';
+import ShotGroup from '../entities/ShotGroup.js';
 import Bot from '../entities/Bot.js';
 
 export default {
   create: function() {
-    game.setVec = function(one, two){
-      one.x = two.x; one.y = two.y;
-    }
-    game.subVec = function(one, two){
-      return {x:one.x - two.x, y: one.y - two.y}
-    }
-    game.addVec = function(one, two){
-      return {x:one.x + two.x, y: one.y + two.y}
-    }
-
+    game.physics.startSystem(Phaser.Physics.ARCADE);
     game.ui = new Interface();
-    game.shotGroup = game.add.group();
+    game.shotGroup = new ShotGroup();
     game.mines = new MineGroup();
     game.bot = new Bot(game.width/2, game.height/2);
     game.rockets = new RocketGroup();
@@ -35,6 +27,7 @@ export default {
         game.ui.nextWave();
       }
     }
+    game.ui.update()
     game.physics.arcade.overlap(game.rockets, game.shotGroup, this.test, null, this)
   },
   
@@ -42,7 +35,8 @@ export default {
     rocket.damage(shot.health);
     shot.hit(rocket)
   },
-
   
-  render: function() {},
+  render: function() {
+    // game.shotGroup.children.map((r) => game.debug.body(r))
+  },
 }

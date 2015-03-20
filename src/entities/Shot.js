@@ -2,18 +2,15 @@ class Shot extends Phaser.Sprite {
 
   constructor(x, y) {
     super(game, x, y, 'shot');
-    this.charging = true
-    this.health = 5;
-    this.scale.setTo(0)
     this.minHealth = 20;
     this.maxHealth = 40;
     this.speed = {min: 300, max: 600}
-    this.chargingRate = 0.4;
-    game.shotGroup.add(this)
+    this.chargingRate = 0.2;
+    this.drainRate = 0.1;
     this.anchor.setTo(0.5);
     game.physics.enable(this, Phaser.Physics.ARCADE);
-    
     this.body.bounce.setTo(0.8, 0.8)
+    game.shotGroup.add(this)
   }
 
   release(angle, speed) {
@@ -22,6 +19,7 @@ class Shot extends Phaser.Sprite {
     } else {
       game.math.clamp(speed, this.speed.min, this.speed.max)
       this.shoot(game.physics.arcade.velocityFromAngle(angle, speed))
+      this.body.setSize(this.width*1.3, this.height*1.3, 0, 0);
     }
     this.charging = false;
     this.damage(0)
@@ -48,26 +46,50 @@ class Shot extends Phaser.Sprite {
   }
 
   hit() {
+    // this.body.setSize(this.width*1.3, this.height*1.3, 0, 0);
     this.health -= 1;
+  }
+
+  kill() {
+    this.body.setSize(0, 0, 0, 0);
+    super.kill();
+  }
+
+  reset(x, y, health) {
+    super.reset(x, y, health);
+    this.charging = true
+    this.health = 5;
+    this.alpha = 1
+    this.scale.setTo(0)
+    this.body.setSize(10, 10, 0, 0);
+  }
+
+  heal(val) {
+    this.damage(-val);
   }
 
   damage(val) {
     if (val < 0 && this.health >= this.maxHealth) return
 
     this.health -= val;
-    if (this.is_shot || this.charging) this.scale.setTo(this.health/80)
+    if (this.is_shot || this.charging) {
+      this.scale.setTo(this.health/80)
+    }
     if(this.charging) return
     if (this.health <= 8) this.kill();
     this.alpha = this.health < this.minHealth ? this.health/this.minHealth : 1;
   }
   
   update() {
+    if(!this.alive) return
     this.angle += (this.health>0) ? this.health/5 : 1
 
     if (this.charging) {
-      this.damage(-1)
+      this.heal(this.chargingRate)
     } else if(this.is_shot){
-      this.damage(0.1)
+      this.damage(this.drainRate)
+    } else {
+      this.body.setSize(this.width*.35, this.height*.35, 0, 0);
     }
   }
 }

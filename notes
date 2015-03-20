@@ -1,0 +1,59 @@
+upgrade:
+	shots
+		homing shots
+		bouncing shots
+		double shot
+		triple shot
+
+	blast
+		blast does more damage
+		blast has larger radius
+		fully charged blast can be left as temporary barrier
+		fully charged blast can generate a shield
+
+	misc
+		shield for bot
+		recharging health
+		faster acceleration
+		slow down time
+		moving around causes your shots to charge faster
+		faster charging
+
+
+	mines
+		lay more mines
+		larger blast radius
+		charge mines faster
+		mines latch to enemies
+
+
+	enemy types:
+		small
+			slightly slow
+			slightly large
+			slightly damaging
+
+			specials: leech
+
+		regular
+			moderately slow
+			moderately large
+			moderately damaging
+
+
+		large
+			very slow
+			very large
+			very damaging
+
+		shooter: charges shot
+
+		magnet: attracts and absorbs shots
+
+		miner: lays mines
+
+		
+
+
+changes:
+	mines shouldnt explode if bot is in radius

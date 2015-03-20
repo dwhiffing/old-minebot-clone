@@ -13,6 +13,7 @@ class Rocket extends Phaser.Sprite {
     this.wobble = 1;
 
     game.physics.enable(this, Phaser.Physics.ARCADE);
+    this.body.setSize(20, 20, 0, 0);
 
     game.add.tween(this).to({ wobble: -this.wobble },
       250, Phaser.Easing.Sinusoidal.InOut, true, 0,

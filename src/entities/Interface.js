@@ -1,6 +1,10 @@
 export default class Interface {
   constructor() {
     game.bg = game.add.sprite(0 ,0, 'bg');
+    game.stars_back = game.add.sprite(0 ,0, 'stars1');
+    game.stars_back2 = game.add.sprite(0 ,0, 'stars0');
+    game.stars_fore = game.add.sprite(0 ,0, 'stars2');
+    game.grid = game.add.sprite(0 ,0, 'grid');
     
     game.lives_text = game.add.text(10, game.height-35, 'lives 5', {font:'13pt Arial',fill:'#ee2c63'})
     game.lives_text.anchor.setTo(0,0.5)
@@ -39,6 +43,20 @@ export default class Interface {
     game.bot.score=0
     game.score_text.text = `score 0`
     game.rockets.callAll("kill")
+  }
+
+  update() {
+    game.grid.x = game.bot.target.x / 70 - 35
+    game.grid.y = game.bot.target.y / 70 - 40
+    
+    game.stars_fore.x = game.bot.target.x / 45
+    game.stars_fore.y = game.bot.target.y / 45
+
+    game.stars_back.x = game.bot.target.x / 20
+    game.stars_back.y = game.bot.target.y / 20
+
+    game.stars_back2.x = game.bot.target.x / 15
+    game.stars_back2.y = game.bot.target.y / 15
   }
 }
 

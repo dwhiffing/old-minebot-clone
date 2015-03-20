@@ -87,7 +87,7 @@ class Bot extends Phaser.Sprite {
       if(!pointer.isDown) {
         game.mines.get(this.x, this.y)
       } else {
-        this.currentShot = new Shot(this.x, this.y)
+        this.currentShot = game.shotGroup.get(this.x, this.y)
         this.currentShot.position.set(this.x, this.y)
       }
     })
