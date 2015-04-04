@@ -3,6 +3,7 @@ export default {
 
   preload: function() {
     game.load.image('mine', 'images/mine.png');
+    game.load.image('shop_icon', 'images/icon.png');
     game.load.image('rocket', 'images/rocket.png');
     game.load.image('bg', 'images/bg.jpg');
     game.load.image('stars0', 'images/bg0.png');

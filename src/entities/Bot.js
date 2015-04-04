@@ -14,11 +14,10 @@ class Bot extends Phaser.Sprite {
     this.animations.play('life', 0)
 
     this.history = []
-    this.drag = {
-      point: Phaser.Point(), 
-      offset: Phaser.Point(), 
-      start: Phaser.Point()
-    }
+    this.drag = {}
+    this.drag.point= new Phaser.Point(0,0)
+    this.drag.offset=new  Phaser.Point(0,0)
+    this.drag.start= new Phaser.Point(0,0)
 
     this.is_mobile = game.device.touch
     this.pointer = this.is_mobile ? game.input.pointer1 : game.input.activePointer;
@@ -38,6 +37,10 @@ class Bot extends Phaser.Sprite {
   update() {
     if (!this.alive) return 
     
+    if (game.shop_active) {
+
+    }
+    
     if(this.currentShot) {
       var shot_dist = (this.getCurrentSpeed() > 100) ? 24 : 0
       var angle = game.physics.arcade.velocityFromAngle(this.getCurrentAngle(), shot_dist)
@@ -45,8 +48,8 @@ class Bot extends Phaser.Sprite {
     }
     
     if(this.moving){
-      Phaser.Point.subtract(this.drag.point, this.pointer, this.drag.offset)
-      Phaser.Point.subtract(this.drag.start, this.drag.offset, this.target)
+      this.drag.offset = Phaser.Point.subtract(this.drag.point, this.pointer)
+      this.target = Phaser.Point.subtract(this.drag.start, this.drag.offset)
     }
     
     this.history.push({x: this.x, y: this.y})
@@ -64,8 +67,8 @@ class Bot extends Phaser.Sprite {
       if (!this.moving) {
         this.moving = true;
         this.movementPointer = pointer.id
-        this.drag.point.set(this.pointer)
-        this.drag.start.set(this.position)
+        this.drag.point.set(this.pointer.x, this.pointer.y)
+        this.drag.start.set(this.position.x, this.position.y)
       }
     } else {
       this.chargeShot(pointer);

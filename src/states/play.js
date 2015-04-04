@@ -17,16 +17,6 @@ export default {
   },
 
   update: function() {
-    if (game.wave_in_progress) {
-      game.rockets.launch();
-    }
-    if (game.wave_timer <= 0){
-      game.wave_in_progress = false;
-      this.something = false;
-      if(game.rockets.countLiving() === 0 && this.something === false) {
-        game.ui.nextWave();
-      }
-    }
     game.ui.update()
     game.physics.arcade.overlap(game.rockets, game.shotGroup, this.test, null, this)
   },
@@ -36,7 +26,5 @@ export default {
     shot.hit(rocket)
   },
   
-  render: function() {
-    // game.shotGroup.children.map((r) => game.debug.body(r))
-  },
+  render: function() {},
 }

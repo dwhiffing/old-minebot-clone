@@ -94,11 +94,10 @@ var Bot = (function (_Phaser$Sprite) {
     this.animations.play("life", 0);
 
     this.history = [];
-    this.drag = {
-      point: Phaser.Point(),
-      offset: Phaser.Point(),
-      start: Phaser.Point()
-    };
+    this.drag = {};
+    this.drag.point = new Phaser.Point(0, 0);
+    this.drag.offset = new Phaser.Point(0, 0);
+    this.drag.start = new Phaser.Point(0, 0);
 
     this.is_mobile = game.device.touch;
     this.pointer = this.is_mobile ? game.input.pointer1 : game.input.activePointer;
@@ -122,15 +121,17 @@ var Bot = (function (_Phaser$Sprite) {
       value: function update() {
         if (!this.alive) {
           return;
-        }if (this.currentShot) {
+        }if (game.shop_active) {}
+
+        if (this.currentShot) {
           var shot_dist = this.getCurrentSpeed() > 100 ? 24 : 0;
           var angle = game.physics.arcade.velocityFromAngle(this.getCurrentAngle(), shot_dist);
           this.currentShot.position.set(this.x + angle.x, this.y + angle.y);
         }
 
         if (this.moving) {
-          Phaser.Point.subtract(this.drag.point, this.pointer, this.drag.offset);
-          Phaser.Point.subtract(this.drag.start, this.drag.offset, this.target);
+          this.drag.offset = Phaser.Point.subtract(this.drag.point, this.pointer);
+          this.target = Phaser.Point.subtract(this.drag.start, this.drag.offset);
         }
 
         this.history.push({ x: this.x, y: this.y });
@@ -149,8 +150,8 @@ var Bot = (function (_Phaser$Sprite) {
           if (!this.moving) {
             this.moving = true;
             this.movementPointer = pointer.id;
-            this.drag.point.set(this.pointer);
-            this.drag.start.set(this.position);
+            this.drag.point.set(this.pointer.x, this.pointer.y);
+            this.drag.start.set(this.position.x, this.position.y);
           }
         } else {
           this.chargeShot(pointer);
@@ -267,6 +268,8 @@ var _classCallCheck = function (instance, Constructor) { if (!(instance instance
 
 var Interface = (function () {
   function Interface() {
+    var _this = this;
+
     _classCallCheck(this, Interface);
 
     game.bg = game.add.sprite(0, 0, "bg");
@@ -284,17 +287,65 @@ var Interface = (function () {
     game.left_text = game.add.text(game.width - 20, game.height - 10, "enemies 0", { font: "13pt Arial", fill: "#ee2c63", align: "right" });
     game.left_text.anchor.setTo(1, 0.5);
 
+    game.text_group = game.add.group();
+    game.text_group.addMultiple([game.lives_text, game.score_text, game.wave_text, game.left_text]);
+
     game.wave_num = 1;
-    game.wave_timer = 10;
+    game.wave_timer = 2;
     game.wave_in_progress = true;
-    this.something = true;
+
+    game.world.setBounds();
+
+    this.shop_group = game.add.group();
+    this.shop_group.classType = Phaser.Button;
+    var buffer = 100;
+
+    [0, 1, 2, 3, 4].map(function (num) {
+      var x = buffer + 120 * num;
+      var y = 80;
+      _this.shop_group.create(x, y, "shop_icon", function () {
+        return _this.nextWave();
+      });
+      var text = game.add.text(x, y + 80, "TEXT", { font: "13pt Arial", fill: "#ffffff", align: "center" });
+      _this.shop_group.add(text);
+    });
+
+    [0, 1, 2, 3, 4].map(function (num) {
+      var x = buffer + 120 * num;
+      var y = 250;
+      _this.shop_group.create(x, y, "shop_icon", function () {
+        return _this.nextWave();
+      });
+      var text = game.add.text(x, y + 80, "TEXT", { font: "13pt Arial", fill: "#ffffff", align: "center" });
+      _this.shop_group.add(text);
+    });
+
+    this.hideShop();
+    this.shop_group.y = game.height + 150;
   }
 
   _createClass(Interface, {
+    showShop: {
+      value: function showShop() {
+        var thing = game.height + 150;
+        game.add.tween(game.camera).to({ y: thing }, 750, "Quad.easeInOut", true);
+        game.add.tween(game.text_group).to({ y: thing }, 750, "Quad.easeInOut", true);
+        game.add.tween(game.grid).to({ y: thing / 2 }, 750, "Quad.easeInOut", true);
+        game.shop_active = true;
+      }
+    },
+    hideShop: {
+      value: function hideShop() {
+        game.add.tween(game.camera).to({ y: 0 }, 750, "Quad.easeInOut", true);
+        game.add.tween(game.text_group).to({ y: 0 }, 750, "Quad.easeInOut", true);
+        game.add.tween(game.grid).to({ y: 0 }, 750, "Quad.easeInOut", true);
+        game.shop_active = false;
+      }
+    },
     nextWave: {
       value: function nextWave() {
-        game.wave_timer = 10 + game.wave_num * 2;
-        this.something = true;
+        this.hideShop();
+        game.wave_timer = game.wave_num * 2;
         game.time.events.add(2000, function () {
           game.wave_num++;
           game.wave_text.text = "wave " + game.wave_num;
@@ -318,17 +369,32 @@ var Interface = (function () {
     },
     update: {
       value: function update() {
-        game.grid.x = game.bot.target.x / 70 - 35;
-        game.grid.y = game.bot.target.y / 70 - 40;
+        this.updateBG();
+        if (game.wave_in_progress) {
+          game.wave_timer--;
+          game.left_text.text = "enemies " + (game.wave_timer + game.rockets.countLiving());
+          game.rockets.launch();
+        }
+        if (game.wave_timer <= 0) {
+          game.wave_in_progress = false;
+          if (game.rockets.countLiving() === 0 && !game.shop_active) {
+            this.showShop();
+          }
+        }
+      }
+    },
+    updateBG: {
+      value: function updateBG() {
+        if (game.shop_active) {
+          return;
+        }game.stars_fore.x = game.bot.target.x / 250;
+        game.stars_fore.y = game.bot.target.y / 250;
 
-        game.stars_fore.x = game.bot.target.x / 45;
-        game.stars_fore.y = game.bot.target.y / 45;
+        game.stars_back.x = game.bot.target.x / 120;
+        game.stars_back.y = game.bot.target.y / 120;
 
-        game.stars_back.x = game.bot.target.x / 20;
-        game.stars_back.y = game.bot.target.y / 20;
-
-        game.stars_back2.x = game.bot.target.x / 15;
-        game.stars_back2.y = game.bot.target.y / 15;
+        game.stars_back2.x = game.bot.target.x / 80;
+        game.stars_back2.y = game.bot.target.y / 80;
       }
     }
   });
@@ -478,6 +544,7 @@ var Rocket = (function (_Phaser$Sprite) {
     _get(Object.getPrototypeOf(Rocket.prototype), "constructor", this).call(this, game, x, y, "rocket");
     this.anchor.setTo(0.5, 0.5);
     this.scale.setTo(1.5, 1.5);
+    // this.blendMode = PIXI.blendModes.SCREEN;
 
     this.maxSpeed = 250;
     this.minSpeed = 2;
@@ -675,9 +742,6 @@ var RocketGroup = (function (_Phaser$Group) {
     launch: {
       value: function launch() {
         if (this.countLiving() < this.max) {
-          game.wave_timer--;
-          game.left_text.text = "enemies " + (game.wave_timer + this.countLiving());
-
           var x = game.math.chanceRoll(50) ? -20 : game.width + 20;
           var y = game.math.chanceRoll(50) ? -20 : game.height + 20;
 
@@ -929,6 +993,7 @@ module.exports = {
 
   preload: function preload() {
     game.load.image("mine", "images/mine.png");
+    game.load.image("shop_icon", "images/icon.png");
     game.load.image("rocket", "images/rocket.png");
     game.load.image("bg", "images/bg.jpg");
     game.load.image("stars0", "images/bg0.png");
@@ -977,16 +1042,6 @@ module.exports = {
   },
 
   update: function update() {
-    if (game.wave_in_progress) {
-      game.rockets.launch();
-    }
-    if (game.wave_timer <= 0) {
-      game.wave_in_progress = false;
-      this.something = false;
-      if (game.rockets.countLiving() === 0 && this.something === false) {
-        game.ui.nextWave();
-      }
-    }
     game.ui.update();
     game.physics.arcade.overlap(game.rockets, game.shotGroup, this.test, null, this);
   },
@@ -997,7 +1052,5 @@ module.exports = {
   },
 
   render: function render() {} };
-
-// game.shotGroup.children.map((r) => game.debug.body(r))
 
 },{"../entities/BlastGroup.js":"/Users/danielwhiffing/Dropbox/js/phaser/minebot/src/entities/BlastGroup.js","../entities/Bot.js":"/Users/danielwhiffing/Dropbox/js/phaser/minebot/src/entities/Bot.js","../entities/Interface.js":"/Users/danielwhiffing/Dropbox/js/phaser/minebot/src/entities/Interface.js","../entities/MineGroup.js":"/Users/danielwhiffing/Dropbox/js/phaser/minebot/src/entities/MineGroup.js","../entities/RocketGroup.js":"/Users/danielwhiffing/Dropbox/js/phaser/minebot/src/entities/RocketGroup.js","../entities/ShotGroup.js":"/Users/danielwhiffing/Dropbox/js/phaser/minebot/src/entities/ShotGroup.js"}]},{},["./src/game.js"]);

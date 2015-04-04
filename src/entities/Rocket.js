@@ -6,6 +6,7 @@ class Rocket extends Phaser.Sprite {
     super(game, x, y, 'rocket');
     this.anchor.setTo(0.5, 0.5);
     this.scale.setTo(1.5,1.5);
+    // this.blendMode = PIXI.blendModes.SCREEN;
     
     this.maxSpeed = 250;
     this.minSpeed = 2;
