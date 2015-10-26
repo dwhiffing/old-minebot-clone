@@ -14,17 +14,18 @@ export default {
     game.bot = new Bot(game.width/2, game.height/2);
     game.rockets = new RocketGroup();
     game.blasts = new BlastGroup();
+    game.ui.resetWaves();
   },
 
   update: function() {
     game.ui.update()
     game.physics.arcade.overlap(game.rockets, game.shotGroup, this.test, null, this)
   },
-  
+
   test: function(rocket, shot) {
     rocket.damage(shot.health);
     shot.hit(rocket)
   },
-  
+
   render: function() {},
 }

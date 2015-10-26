@@ -1,4 +1,4 @@
-class Shot extends Phaser.Sprite { 
+class Shot extends Phaser.Sprite {
 
   constructor(x, y) {
     super(game, x, y, 'shot');
@@ -6,7 +6,7 @@ class Shot extends Phaser.Sprite {
     this.maxHealth = 40;
     this.speed = {min: 300, max: 600}
     this.chargingRate = 0.2;
-    this.drainRate = 0.1;
+    this.drainRate = 0.2;
     this.anchor.setTo(0.5);
     game.physics.enable(this, Phaser.Physics.ARCADE);
     this.body.bounce.setTo(0.8, 0.8)
@@ -47,7 +47,7 @@ class Shot extends Phaser.Sprite {
 
   hit() {
     // this.body.setSize(this.width*1.3, this.height*1.3, 0, 0);
-    this.health -= 1;
+    this.health -= 6
   }
 
   kill() {
@@ -79,17 +79,19 @@ class Shot extends Phaser.Sprite {
     if (this.health <= 8) this.kill();
     this.alpha = this.health < this.minHealth ? this.health/this.minHealth : 1;
   }
-  
+
   update() {
     if(!this.alive) return
     this.angle += (this.health>0) ? this.health/5 : 1
 
     if (this.charging) {
-      this.heal(this.chargingRate)
+      let rate = this.chargingRate * (game.upgrades[4].level +1)
+      this.heal(rate)
     } else if(this.is_shot){
       this.damage(this.drainRate)
     } else {
-      this.body.setSize(this.width*.35, this.height*.35, 0, 0);
+      let change = .35
+      this.body.setSize(this.width*change, this.height*change, 0, 0);
     }
   }
 }

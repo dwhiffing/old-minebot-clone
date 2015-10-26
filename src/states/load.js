@@ -11,6 +11,7 @@ export default {
     game.load.image('stars2', 'images/bg2.png');
     game.load.image('grid', 'images/grid.png');
     game.load.image('smoke', 'images/smoke.png');
+    game.load.image('full', 'images/fullscreen.png');
     game.load.atlasJSONHash('bot', 'images/blue.png', 'images/blue.json');
     game.load.image('shot', 'images/shot.png');
     game.load.spritesheet('explosion', 'images/explosion.png', 128, 128);

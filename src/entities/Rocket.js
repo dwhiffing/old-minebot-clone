@@ -1,17 +1,17 @@
 import SmokeEmitter from './SmokeEmitter'
 
-class Rocket extends Phaser.Sprite { 
+class Rocket extends Phaser.Sprite {
 
   constructor(game, x, y) {
     super(game, x, y, 'rocket');
     this.anchor.setTo(0.5, 0.5);
     this.scale.setTo(1.5,1.5);
     // this.blendMode = PIXI.blendModes.SCREEN;
-    
-    this.maxSpeed = 250;
+
+    this.maxSpeed = 200;
     this.minSpeed = 2;
     this.turnRate = 5;
-    this.wobble = 1;
+    this.wobble = 3;
 
     game.physics.enable(this, Phaser.Physics.ARCADE);
     this.body.setSize(20, 20, 0, 0);
@@ -24,13 +24,13 @@ class Rocket extends Phaser.Sprite {
     this.smoke_emitter = new SmokeEmitter(game);
   }
 
-  updateEmitter() { 
+  updateEmitter() {
     this.smoke_emitter.on = this.alive && !this.sleeping;
     this.smoke_emitter.x = this.x;
     this.smoke_emitter.y = this.y;
   }
 
-  getFlockAngle(distance) { 
+  getFlockAngle(distance) {
     var avoid_angle = 0;
     this.parent.forEachAlive(function(rocket) {
       if (this == rocket || avoid_angle !== 0) return;
@@ -38,7 +38,7 @@ class Rocket extends Phaser.Sprite {
       var distance = game.math.distance(this.x, this.y, rocket.x, rocket.y);
       if (distance < 30) {
         avoid_angle = Math.PI/2;
-        if (game.math.chanceRoll(50)) avoid_angle *= -1;
+        if (Phaser.Utils.chanceRoll(50)) avoid_angle *= -1;
       }
     }, this);
 
@@ -46,11 +46,11 @@ class Rocket extends Phaser.Sprite {
     return avoid_angle
   }
 
-  getWobble() { 
+  getWobble() {
     return game.math.degToRad(this.wobble)
   }
 
-  turnTowardsAngle(angle) { 
+  turnTowardsAngle(angle) {
     if (this.rotation === angle) return;
     // Gradually aim the Rocket towards the target angle
     var delta = angle - this.rotation;
@@ -69,13 +69,12 @@ class Rocket extends Phaser.Sprite {
   update() {
     this.updateEmitter();
     if (!this.alive) return
-    
+
     var target_angle = game.math.angleBetween(this.x, this.y, this.target.x, this.target.y);
     var target_dist = game.math.distance(this.x, this.y, this.target.x, this.target.y);
-    
+
     if (target_dist < 125) {
       this.sleep_timer.pause()
-      this.current_speed = this.maxSpeed * (target_dist/100) - 15;
     } else {
       this.sleep_timer.resume()
       target_angle += this.getWobble();
@@ -84,7 +83,7 @@ class Rocket extends Phaser.Sprite {
 
     target_angle += this.getFlockAngle(target_dist);
     this.turnTowardsAngle(target_angle);
-    
+
     if (this.sleeping) {
       this.turnRate *= 0.96
       this.body.velocity.multiply(0.96, 0.96)
@@ -100,29 +99,32 @@ class Rocket extends Phaser.Sprite {
   }
 
   hitTarget() {
-    game.bot.damage(15);
+    game.bot.damage(25);
     this.hit_target=true;
+    game.enemies_left_to_spawn++;
     this.kill()
   }
 
   kill() {
     if(!this.hit_target) {
-      game.bot.score+=100
+      game.bot.score+=50
       game.score_text.text = `score ${game.bot.score}`
+      game.killed_this_wave++
     }
     this.hit_target = false;
     game.blasts.get(this.x, this.y);
-    game.left_text.text = `enemies ${game.wave_timer+game.rockets.countLiving()}`
+    game.left_text.text = `enemies ${game.enemies_per_wave-game.killed_this_wave}`
     super.kill()
   }
 
-  reset(x, y) {
+  reset(x, y, speed=350, turnRate=5) {
     this.target = game.bot;
     this.hit_target = false;
-
+    this.maxSpeed = speed;
+    this.turnRate = turnRate;
     this.sleeping = false;
-    this.sleep_frequency = game.rnd.integerInRange(3000,8000)    
-    this.sleep_duration = game.rnd.integerInRange(500,2000)    
+    this.sleep_frequency = game.rnd.integerInRange(3000,8000)
+    this.sleep_duration = game.rnd.integerInRange(500,2000)
     this.sleep_timer = game.time.create(false);
     this.sleep_timer.start();
     super.reset(x, y, 10)

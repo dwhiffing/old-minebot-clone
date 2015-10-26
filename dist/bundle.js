@@ -1,4 +1,4 @@
-(function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof require=="function"&&require;if(!u&&a)return a(o,!0);if(i)return i(o,!0);var f=new Error("Cannot find module '"+o+"'");throw f.code="MODULE_NOT_FOUND",f}var l=n[o]={exports:{}};t[o][0].call(l.exports,function(e){var n=t[o][1][e];return s(n?n:e)},l,l.exports,e,t,n,r)}return n[o].exports}var i=typeof require=="function"&&require;for(var o=0;o<r.length;o++)s(r[o]);return s})({"./src/game.js":[function(require,module,exports){
+(function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof require=="function"&&require;if(!u&&a)return a(o,!0);if(i)return i(o,!0);var f=new Error("Cannot find module '"+o+"'");throw f.code="MODULE_NOT_FOUND",f}var l=n[o]={exports:{}};t[o][0].call(l.exports,function(e){var n=t[o][1][e];return s(n?n:e)},l,l.exports,e,t,n,r)}return n[o].exports}var i=typeof require=="function"&&require;for(var o=0;o<r.length;o++)s(r[o]);return s})({1:[function(require,module,exports){
 "use strict";
 
 var ratio = window.innerHeight / window.innerWidth;
@@ -9,7 +9,7 @@ game.state.add("load", require("./states/load.js"));
 game.state.add("play", require("./states/play.js"));
 game.state.start("boot");
 
-},{"./states/boot.js":"/Users/danielwhiffing/Dropbox/js/phaser/minebot/src/states/boot.js","./states/load.js":"/Users/danielwhiffing/Dropbox/js/phaser/minebot/src/states/load.js","./states/play.js":"/Users/danielwhiffing/Dropbox/js/phaser/minebot/src/states/play.js"}],"/Users/danielwhiffing/Dropbox/js/phaser/minebot/src/entities/BlastGroup.js":[function(require,module,exports){
+},{"./states/boot.js":12,"./states/load.js":13,"./states/play.js":14}],2:[function(require,module,exports){
 "use strict";
 
 var _createClass = (function () { function defineProperties(target, props) { for (var key in props) { var prop = props[key]; prop.configurable = true; if (prop.value) prop.writable = true; } Object.defineProperties(target, props); } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; })();
@@ -63,7 +63,7 @@ var BlastGroup = (function (_Phaser$Group) {
 
 module.exports = BlastGroup;
 
-},{}],"/Users/danielwhiffing/Dropbox/js/phaser/minebot/src/entities/Bot.js":[function(require,module,exports){
+},{}],3:[function(require,module,exports){
 "use strict";
 
 var _interopRequire = function (obj) { return obj && obj.__esModule ? obj["default"] : obj; };
@@ -103,15 +103,17 @@ var Bot = (function (_Phaser$Sprite) {
     this.pointer = this.is_mobile ? game.input.pointer1 : game.input.activePointer;
     this.target = this.is_mobile ? { x: x, y: y } : this.pointer;
 
-    this.max_health = 100;
-    this.lives = 5;
+    this.maxHealth = 100;
+    this.lives = 3;
     this.score = 0;
+    this.max_mines = 2;
+    this.mine_ready = true;
 
     game.input.onDown.add(this.move, this);
     game.input.onUp.add(this.stopMoving, this);
 
     game.add.existing(this);
-    this.reset(x, y, this.max_health, false);
+    this.reset(x, y, this.maxHealth, false);
   }
 
   _inherits(Bot, _Phaser$Sprite);
@@ -146,7 +148,7 @@ var Bot = (function (_Phaser$Sprite) {
     },
     move: {
       value: function move(pointer) {
-        if (this.is_mobile && pointer.x < game.width / 2.5) {
+        if (this.is_mobile && (pointer.x < game.width / 2.5 || this.charging)) {
           if (!this.moving) {
             this.moving = true;
             this.movementPointer = pointer.id;
@@ -163,6 +165,7 @@ var Bot = (function (_Phaser$Sprite) {
         if (this.is_mobile && this.movementPointer == pointer.id) {
           this.moving = false;
         } else {
+          this.charging = false;
           this.releaseShot();
         }
       }
@@ -171,16 +174,29 @@ var Bot = (function (_Phaser$Sprite) {
       value: function chargeShot(pointer) {
         var _this = this;
 
-        if (!this.alive) {
+        if (!this.alive || !game.wave_in_progress) {
           return;
-        }game.time.events.add(200, function () {
-          if (!pointer.isDown) {
-            game.mines.get(_this.x, _this.y);
+        }var checkShot = function () {
+          if (!pointer.isDown || pointer.isDown && _this.is_mobile && pointer.id === _this.movementPointer) {
+            if (game.mines.countLiving() < _this.max_mines && _this.mine_ready) {
+              game.mines.get(_this.x, _this.y);
+              _this.mine_ready = false;
+              var delay = (game.upgrades[1].level + 1) * 300;
+              game.time.events.add(1200 - delay, function () {
+                _this.mine_ready = true;
+              });
+            }
           } else {
             _this.currentShot = game.shotGroup.get(_this.x, _this.y);
             _this.currentShot.position.set(_this.x, _this.y);
           }
-        });
+        };
+        if (this.is_mobile && !this.charging) {
+          this.charging = true;
+          game.time.events.add(200, checkShot);
+        } else if (!this.is_mobile) {
+          game.time.events.add(200, checkShot);
+        }
       }
     },
     releaseShot: {
@@ -196,18 +212,20 @@ var Bot = (function (_Phaser$Sprite) {
         if (!this.alive || this.invincible) {
           return;
         }_get(Object.getPrototypeOf(Bot.prototype), "damage", this).call(this, val);
-        this.animations.frame = this.num_frames - Math.ceil(this.health / (this.max_health / this.num_frames));
+        this.animations.frame = this.num_frames - Math.ceil(this.health / (this.maxHealth / this.num_frames));
+        game.health_text.text = "health " + this.health;
       }
     },
     kill: {
       value: function kill() {
         var _this = this;
 
+        this.lives--;
         if (this.lives < 1) game.ui.resetWaves();
         game.blasts.get(this.x, this.y, 1);
-        game.lives_text.text = "lives " + --this.lives;
+        game.lives_text.text = "lives " + this.lives;
         game.time.events.add(1000, function () {
-          _this.reset(game.width / 2, game.height / 2, _this.max_health);
+          _this.reset(game.width / 2, game.height / 2, _this.maxHealth);
         });
         _get(Object.getPrototypeOf(Bot.prototype), "kill", this).call(this);
       }
@@ -216,7 +234,7 @@ var Bot = (function (_Phaser$Sprite) {
       value: function reset(x, y) {
         var _this = this;
 
-        var health = arguments[2] === undefined ? this.max_health : arguments[2];
+        var health = arguments[2] === undefined ? this.maxHealth : arguments[2];
         var invuln = arguments[3] === undefined ? true : arguments[3];
 
         _get(Object.getPrototypeOf(Bot.prototype), "reset", this).call(this, x, y, health);
@@ -259,72 +277,172 @@ var Bot = (function (_Phaser$Sprite) {
 
 module.exports = Bot;
 
-},{"./Mine.js":"/Users/danielwhiffing/Dropbox/js/phaser/minebot/src/entities/Mine.js","./Shot.js":"/Users/danielwhiffing/Dropbox/js/phaser/minebot/src/entities/Shot.js"}],"/Users/danielwhiffing/Dropbox/js/phaser/minebot/src/entities/Interface.js":[function(require,module,exports){
+},{"./Mine.js":5,"./Shot.js":9}],4:[function(require,module,exports){
 "use strict";
 
 var _createClass = (function () { function defineProperties(target, props) { for (var key in props) { var prop = props[key]; prop.configurable = true; if (prop.value) prop.writable = true; } Object.defineProperties(target, props); } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; })();
 
 var _classCallCheck = function (instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } };
 
+var addText = function (x, y, string, opts) {
+  if (x < 0) {
+    x = game.width + x;
+  }
+  if (y < 0) {
+    y = game.height + y;
+  }
+  opts = opts || {};
+  opts = Object.assign({ font: "13pt Arial", fill: "#ee2c63" }, opts);
+
+  var text = game.add.text(x, y, string, opts);
+  if (opts.anchorX && opts.anchorY) {
+    text.anchor.setTo(opts.anchorX, opts.anchorY);
+  }
+  return text;
+};
+
 var Interface = (function () {
   function Interface() {
-    var _this = this;
-
     _classCallCheck(this, Interface);
 
-    game.bg = game.add.sprite(0, 0, "bg");
-    game.stars_back = game.add.sprite(0, 0, "stars1");
-    game.stars_back2 = game.add.sprite(0, 0, "stars0");
-    game.stars_fore = game.add.sprite(0, 0, "stars2");
-    game.grid = game.add.sprite(0, 0, "grid");
-
-    game.lives_text = game.add.text(10, game.height - 35, "lives 5", { font: "13pt Arial", fill: "#ee2c63" });
-    game.lives_text.anchor.setTo(0, 0.5);
-    game.score_text = game.add.text(10, game.height - 10, "score 0", { font: "13pt Arial", fill: "#ee2c63" });
-    game.score_text.anchor.setTo(0, 0.5);
-    game.wave_text = game.add.text(game.width - 20, game.height - 35, "wave 1", { font: "13pt Arial", fill: "#ee2c63", align: "right" });
-    game.wave_text.anchor.setTo(1, 0.5);
-    game.left_text = game.add.text(game.width - 20, game.height - 10, "enemies 0", { font: "13pt Arial", fill: "#ee2c63", align: "right" });
-    game.left_text.anchor.setTo(1, 0.5);
-
-    game.text_group = game.add.group();
-    game.text_group.addMultiple([game.lives_text, game.score_text, game.wave_text, game.left_text]);
-
-    game.wave_num = 1;
-    game.wave_timer = 2;
-    game.wave_in_progress = true;
-
+    this.createBG();
+    this.createHUD();
     game.world.setBounds();
-
-    this.shop_group = game.add.group();
-    this.shop_group.classType = Phaser.Button;
-    var buffer = 100;
-
-    [0, 1, 2, 3, 4].map(function (num) {
-      var x = buffer + 120 * num;
-      var y = 80;
-      _this.shop_group.create(x, y, "shop_icon", function () {
-        return _this.nextWave();
-      });
-      var text = game.add.text(x, y + 80, "TEXT", { font: "13pt Arial", fill: "#ffffff", align: "center" });
-      _this.shop_group.add(text);
-    });
-
-    [0, 1, 2, 3, 4].map(function (num) {
-      var x = buffer + 120 * num;
-      var y = 250;
-      _this.shop_group.create(x, y, "shop_icon", function () {
-        return _this.nextWave();
-      });
-      var text = game.add.text(x, y + 80, "TEXT", { font: "13pt Arial", fill: "#ffffff", align: "center" });
-      _this.shop_group.add(text);
-    });
-
-    this.hideShop();
-    this.shop_group.y = game.height + 150;
+    this.createShop();
   }
 
   _createClass(Interface, {
+    createBG: {
+      value: function createBG() {
+        game.bg = game.add.sprite(0, 0, "bg");
+        game.stars_back = game.add.sprite(0, 0, "stars1");
+        game.stars_back2 = game.add.sprite(0, 0, "stars0");
+        game.stars_fore = game.add.sprite(0, 0, "stars2");
+        game.grid = game.add.sprite(0, 0, "grid");
+      }
+    },
+    createHUD: {
+      value: function createHUD() {
+        game.health_text = addText(20, -60, "health 100", {
+          anchorX: 0.01,
+          anchorY: 0.5
+        });
+        game.lives_text = addText(20, -35, "lives 3", {
+          anchorX: 0.01,
+          anchorY: 0.5
+        });
+        game.score_text = addText(20, -10, "score 0", {
+          anchorX: 0.01,
+          anchorY: 0.5
+        });
+        game.wave_text = addText(-20, -35, "wave 1", {
+          anchorX: 1,
+          anchorY: 0.5,
+          align: "right"
+        });
+        game.left_text = addText(-20, -10, "enemies 0", {
+          anchorX: 1,
+          anchorY: 0.5,
+          align: "right"
+        });
+
+        game.fullscreenButton = game.add.button(10, 10, "full", function () {
+          if (game.scale.isFullScreen) {
+            game.scale.stopFullScreen();
+          } else {
+            game.scale.startFullScreen(false);
+          }
+        });
+
+        game.text_group = game.add.group();
+        game.text_group.addMultiple([game.fullscreenButton, game.health_text, game.lives_text, game.score_text, game.wave_text, game.left_text]);
+      }
+    },
+    createShop: {
+      value: function createShop() {
+        var _this = this;
+
+        this.shop_group = game.add.group();
+        this.shop_group.classType = Phaser.Button;
+        var labels = ["ARMOR", "MINE SPEED", "MINE COUNT", "MINE POWER", "CHARGE RATE", "REPAIR", "BLAST", "SHIELD", "DOUBLE SHOT", "BOUNCE SHOT"];
+
+        game.upgrades = [{ text: "Get more armor", cost: 100, increase: 400, level: 0, max: 5 }, { text: "Lay mines faster", cost: 100, increase: 100, level: 0, max: 5 }, { text: "Lay more mines at once", cost: 300, increase: 200, level: 2, max: 6 }, { text: "Mines have a larger blast", cost: 500, increase: 500, level: 0, max: 3 }, { text: "Charge energy faster", cost: 500, increase: 500, level: 0, max: 3 }, { text: "Repair all damage", cost: 100 }, { text: "Release energy while stationary for a blast", cost: 1000 }, { text: "Gain a charging defensive shield [NOT YET IMPLEMENTED]", cost: 2000 }, { text: "Shoot two shots at once [NOT YET IMPLEMENTED]", cost: 3000 }, { text: "Shots bounce off walls [NOT YET IMPLEMENTED]", cost: 3000 }];
+
+        var description = addText(150, 240, "", {
+          font: "16pt Arial",
+          fill: "#ffffff",
+          align: "center"
+        });
+        description.setTextBounds(0, 0, 500, 200);
+        description.boundsAlignH = "center";
+        game.shop_selected = null;
+        this.shop_group.add(description);
+
+        var bufferX = 50;
+        // create top row of shop
+        [0, 1, 2, 3, 4, 5, 6].map(function (num) {
+          var x = bufferX + 120 * (num % 6);
+          var y = 80;
+          if (num == 6) {
+            x = bufferX;
+            y = 250;
+            var button = _this.shop_group.create(x, y, "shop_icon", function () {
+              _this.nextWave();
+            });
+            var label = "NEXT WAVE";
+          } else {
+            var label = labels[num];
+            var button = _this.shop_group.create(x, y, "shop_icon", function () {
+              var thing = game.upgrades[num];
+              thing.level = thing.level || 0;
+              thing.increase = thing.increase || 0;
+              thing.max = thing.max || 1;
+              var cost = thing.cost + thing.level * thing.increase;
+              if (game.shop_selected != null && game.shop_selected == num) {
+                if (game.bot.score >= cost && thing.level < thing.max && !(num == 5 && game.bot.health == game.bot.maxHealth)) {
+                  game.bot.score -= cost;
+                  thing.level++;
+                  game.score_text.text = "score " + game.bot.score;
+                  cost = thing.cost + thing.level * thing.increase;
+                  _this.updateForUpgrades();
+                }
+              }
+              game.shop_selected = num;
+              description.text = "" + thing.text + " \nCost: " + cost + "\nLevel: " + thing.level + " (Max: " + thing.max + ") score\n(Click again to purchase)";
+            });
+          }
+          var text = addText(x, y + 85, label, {
+            font: "10pt Arial",
+            fill: "#ffffff"
+          });
+          text.setTextBounds(-5, 0, 85, 10);
+          text.boundsAlignH = "center";
+          text.boundsAlignV = "center";
+          _this.shop_group.add(text);
+        });
+
+        this.hideShop();
+        this.shop_group.y = game.height + 150;
+      }
+    },
+    updateForUpgrades: {
+      value: function updateForUpgrades() {
+        var last_health = game.bot.maxHealth;
+        game.bot.maxHealth = 100 * (game.upgrades[0].level + 1);
+        if (last_health !== game.bot.maxHealth) {
+          game.bot.health = game.bot.maxHealth;
+        }
+        // game.bot.max_mines = 2 + game.upgrades[1].level+1
+        game.bot.max_mines = game.upgrades[2].level;
+        // game.bot.max_mines = 2 + game.upgrades[3].level+1
+        if (game.upgrades[5].level == 1) {
+          game.upgrades[5].level = 0;
+          game.bot.health = game.bot.maxHealth;
+        }
+        game.health_text.text = "health " + game.bot.health;
+        game.bot.damage(0);
+      }
+    },
     showShop: {
       value: function showShop() {
         var thing = game.height + 150;
@@ -345,7 +463,12 @@ var Interface = (function () {
     nextWave: {
       value: function nextWave() {
         this.hideShop();
-        game.wave_timer = game.wave_num * 2;
+        game.time.events.remove(game.doSpawnEvent);
+        if (game.spawn_rate > 250) game.spawn_rate -= 50;
+        game.doSpawnEvent = game.time.events.loop(game.spawn_rate, this.doSpawn.bind(this));
+        game.enemies_per_wave += game.enemies_gained_per_wave;
+        game.enemies_left_to_spawn = game.enemies_per_wave;
+        game.killed_this_wave = 0;
         game.time.events.add(2000, function () {
           game.wave_num++;
           game.wave_text.text = "wave " + game.wave_num;
@@ -356,32 +479,45 @@ var Interface = (function () {
     },
     resetWaves: {
       value: function resetWaves() {
-        game.bot.lives = 5;
-        game.wave_num = 1;
-        game.wave_text.text = "wave 1";
-        game.left_text.text = "enemies 0";
-        game.wave_timer = 3;
-        game.wave_in_progress = true;
-        game.bot.score = 0;
-        game.score_text.text = "score 0";
+        if (game.doSpawnEvent) {
+          game.time.events.remove(game.doSpawnEvent);
+        }
+        game.spawn_rate = 1000;
+        game.doSpawnEvent = game.time.events.loop(game.spawn_rate, this.doSpawn.bind(this));
         game.rockets.callAll("kill");
+        game.bot.lives = 3;
+        game.bot.score = 0;
+        game.wave_num = 1;
+        game.enemies_per_wave = 5;
+        game.enemies_left_to_spawn = 5;
+        game.enemies_gained_per_wave = 2;
+        game.wave_in_progress = true;
+        game.killed_this_wave = 0;
+        game.wave_text.text = "wave 1";
+        game.left_text.text = "enemies 5";
+        game.score_text.text = "score " + game.bot.score;
       }
     },
-    update: {
-      value: function update() {
-        this.updateBG();
+    doSpawn: {
+      value: function doSpawn() {
         if (game.wave_in_progress) {
-          game.wave_timer--;
-          game.left_text.text = "enemies " + (game.wave_timer + game.rockets.countLiving());
-          game.rockets.launch();
+          if (game.enemies_left_to_spawn > 0) {
+            game.enemies_left_to_spawn--;
+            game.left_text.text = "enemies " + (game.enemies_per_wave - game.killed_this_wave);
+            game.rockets.launch();
+          }
         }
-        if (game.wave_timer <= 0) {
+        if (game.enemies_left_to_spawn <= 0 && game.rockets.countLiving() <= 0) {
+          game.mines.callAll("kill");
           game.wave_in_progress = false;
           if (game.rockets.countLiving() === 0 && !game.shop_active) {
             this.showShop();
           }
         }
       }
+    },
+    update: {
+      value: function update() {}
     },
     updateBG: {
       value: function updateBG() {
@@ -404,7 +540,9 @@ var Interface = (function () {
 
 module.exports = Interface;
 
-},{}],"/Users/danielwhiffing/Dropbox/js/phaser/minebot/src/entities/Mine.js":[function(require,module,exports){
+// this.updateBG()
+
+},{}],5:[function(require,module,exports){
 "use strict";
 
 var _createClass = (function () { function defineProperties(target, props) { for (var key in props) { var prop = props[key]; prop.configurable = true; if (prop.value) prop.writable = true; } Object.defineProperties(target, props); } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; })();
@@ -422,7 +560,7 @@ var Mine = (function (_Phaser$Sprite) {
     _get(Object.getPrototypeOf(Mine.prototype), "constructor", this).call(this, game, x, y, "mine");
     this.anchor.setTo(0.5, 0.5);
     this.damage = 100;
-    this.triggered = false;
+    this.triggssered = false;
     this.blast_delay = 350;
   }
 
@@ -435,7 +573,7 @@ var Mine = (function (_Phaser$Sprite) {
 
         if (!this.alive || this.triggered) {
           return;
-        }if (this.getInRange().length > 0) {
+        }if (this.getInRangeForTrigger().length > 0) {
           this.triggered = true;
           game.time.events.add(this.blast_delay, function () {
             return _this.kill();
@@ -443,12 +581,21 @@ var Mine = (function (_Phaser$Sprite) {
         }
       }
     },
-    getInRange: {
-      value: function getInRange() {
+    getInRangeForTrigger: {
+      value: function getInRangeForTrigger() {
         var _this = this;
 
         return game.rockets.children.filter(function (r) {
           return _this.getDist(r) < 60;
+        });
+      }
+    },
+    getInRangeForDamage: {
+      value: function getInRangeForDamage() {
+        var _this = this;
+
+        return game.rockets.children.filter(function (r) {
+          return _this.getDist(r) < 60 + 30 * game.upgrades[3].level;
         });
       }
     },
@@ -461,12 +608,14 @@ var Mine = (function (_Phaser$Sprite) {
       value: function kill() {
         var _this = this;
 
-        this.triggered = false;
-        game.blasts.get(this.x, this.y, 0.7);
-        this.getInRange().forEach(function (r) {
-          return r.damage(_this.damage);
-        });
-        _get(Object.getPrototypeOf(Mine.prototype), "kill", this).call(this);
+        if (this.alive) {
+          this.triggered = false;
+          game.blasts.get(this.x, this.y, 0.7 + 0.3 * game.upgrades[3].level);
+          this.getInRangeForDamage().forEach(function (r) {
+            return r.damage(_this.damage);
+          });
+          _get(Object.getPrototypeOf(Mine.prototype), "kill", this).call(this);
+        }
       }
     }
   });
@@ -476,7 +625,7 @@ var Mine = (function (_Phaser$Sprite) {
 
 module.exports = Mine;
 
-},{}],"/Users/danielwhiffing/Dropbox/js/phaser/minebot/src/entities/MineGroup.js":[function(require,module,exports){
+},{}],6:[function(require,module,exports){
 "use strict";
 
 var _interopRequire = function (obj) { return obj && obj.__esModule ? obj["default"] : obj; };
@@ -522,7 +671,7 @@ var MineGroup = (function (_Phaser$Group) {
 
 module.exports = MineGroup;
 
-},{"./Mine.js":"/Users/danielwhiffing/Dropbox/js/phaser/minebot/src/entities/Mine.js"}],"/Users/danielwhiffing/Dropbox/js/phaser/minebot/src/entities/Rocket.js":[function(require,module,exports){
+},{"./Mine.js":5}],7:[function(require,module,exports){
 "use strict";
 
 var _interopRequire = function (obj) { return obj && obj.__esModule ? obj["default"] : obj; };
@@ -546,10 +695,10 @@ var Rocket = (function (_Phaser$Sprite) {
     this.scale.setTo(1.5, 1.5);
     // this.blendMode = PIXI.blendModes.SCREEN;
 
-    this.maxSpeed = 250;
+    this.maxSpeed = 200;
     this.minSpeed = 2;
     this.turnRate = 5;
-    this.wobble = 1;
+    this.wobble = 3;
 
     game.physics.enable(this, Phaser.Physics.ARCADE);
     this.body.setSize(20, 20, 0, 0);
@@ -578,7 +727,7 @@ var Rocket = (function (_Phaser$Sprite) {
           var distance = game.math.distance(this.x, this.y, rocket.x, rocket.y);
           if (distance < 30) {
             avoid_angle = Math.PI / 2;
-            if (game.math.chanceRoll(50)) avoid_angle *= -1;
+            if (Phaser.Utils.chanceRoll(50)) avoid_angle *= -1;
           }
         }, this);
 
@@ -618,7 +767,6 @@ var Rocket = (function (_Phaser$Sprite) {
 
         if (target_dist < 125) {
           this.sleep_timer.pause();
-          this.current_speed = this.maxSpeed * (target_dist / 100) - 15;
         } else {
           this.sleep_timer.resume();
           target_angle += this.getWobble();
@@ -644,28 +792,34 @@ var Rocket = (function (_Phaser$Sprite) {
     },
     hitTarget: {
       value: function hitTarget() {
-        game.bot.damage(15);
+        game.bot.damage(25);
         this.hit_target = true;
+        game.enemies_left_to_spawn++;
         this.kill();
       }
     },
     kill: {
       value: function kill() {
         if (!this.hit_target) {
-          game.bot.score += 100;
+          game.bot.score += 50;
           game.score_text.text = "score " + game.bot.score;
+          game.killed_this_wave++;
         }
         this.hit_target = false;
         game.blasts.get(this.x, this.y);
-        game.left_text.text = "enemies " + (game.wave_timer + game.rockets.countLiving());
+        game.left_text.text = "enemies " + (game.enemies_per_wave - game.killed_this_wave);
         _get(Object.getPrototypeOf(Rocket.prototype), "kill", this).call(this);
       }
     },
     reset: {
       value: function reset(x, y) {
+        var speed = arguments[2] === undefined ? 350 : arguments[2];
+        var turnRate = arguments[3] === undefined ? 5 : arguments[3];
+
         this.target = game.bot;
         this.hit_target = false;
-
+        this.maxSpeed = speed;
+        this.turnRate = turnRate;
         this.sleeping = false;
         this.sleep_frequency = game.rnd.integerInRange(3000, 8000);
         this.sleep_duration = game.rnd.integerInRange(500, 2000);
@@ -694,7 +848,7 @@ var Rocket = (function (_Phaser$Sprite) {
 
 module.exports = Rocket;
 
-},{"./SmokeEmitter":"/Users/danielwhiffing/Dropbox/js/phaser/minebot/src/entities/SmokeEmitter.js"}],"/Users/danielwhiffing/Dropbox/js/phaser/minebot/src/entities/RocketGroup.js":[function(require,module,exports){
+},{"./SmokeEmitter":11}],8:[function(require,module,exports){
 "use strict";
 
 var _interopRequire = function (obj) { return obj && obj.__esModule ? obj["default"] : obj; };
@@ -730,7 +884,7 @@ var RocketGroup = (function (_Phaser$Group) {
     get: {
       value: function get(x, y) {
         var rocket = this.getFirstDead() || this.create();
-        rocket.reset(x, y);
+        rocket.reset(x, y, 200 + 10 * game.wave_num);
         return rocket;
       }
     },
@@ -742,8 +896,8 @@ var RocketGroup = (function (_Phaser$Group) {
     launch: {
       value: function launch() {
         if (this.countLiving() < this.max) {
-          var x = game.math.chanceRoll(50) ? -20 : game.width + 20;
-          var y = game.math.chanceRoll(50) ? -20 : game.height + 20;
+          var x = Phaser.Utils.chanceRoll(50) ? -20 : game.width + 20;
+          var y = Phaser.Utils.chanceRoll(50) ? -20 : game.height + 20;
 
           this.get(x, y);
         }
@@ -756,7 +910,7 @@ var RocketGroup = (function (_Phaser$Group) {
 
 module.exports = RocketGroup;
 
-},{"./Rocket.js":"/Users/danielwhiffing/Dropbox/js/phaser/minebot/src/entities/Rocket.js"}],"/Users/danielwhiffing/Dropbox/js/phaser/minebot/src/entities/Shot.js":[function(require,module,exports){
+},{"./Rocket.js":7}],9:[function(require,module,exports){
 "use strict";
 
 var _createClass = (function () { function defineProperties(target, props) { for (var key in props) { var prop = props[key]; prop.configurable = true; if (prop.value) prop.writable = true; } Object.defineProperties(target, props); } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; })();
@@ -776,7 +930,7 @@ var Shot = (function (_Phaser$Sprite) {
     this.maxHealth = 40;
     this.speed = { min: 300, max: 600 };
     this.chargingRate = 0.2;
-    this.drainRate = 0.1;
+    this.drainRate = 0.2;
     this.anchor.setTo(0.5);
     game.physics.enable(this, Phaser.Physics.ARCADE);
     this.body.bounce.setTo(0.8, 0.8);
@@ -822,7 +976,7 @@ var Shot = (function (_Phaser$Sprite) {
     hit: {
       value: function hit() {
         // this.body.setSize(this.width*1.3, this.height*1.3, 0, 0);
-        this.health -= 1;
+        this.health -= 6;
       }
     },
     kill: {
@@ -867,11 +1021,13 @@ var Shot = (function (_Phaser$Sprite) {
         }this.angle += this.health > 0 ? this.health / 5 : 1;
 
         if (this.charging) {
-          this.heal(this.chargingRate);
+          var rate = this.chargingRate * (game.upgrades[4].level + 1);
+          this.heal(rate);
         } else if (this.is_shot) {
           this.damage(this.drainRate);
         } else {
-          this.body.setSize(this.width * 0.35, this.height * 0.35, 0, 0);
+          var change = 0.35;
+          this.body.setSize(this.width * change, this.height * change, 0, 0);
         }
       }
     }
@@ -882,7 +1038,7 @@ var Shot = (function (_Phaser$Sprite) {
 
 module.exports = Shot;
 
-},{}],"/Users/danielwhiffing/Dropbox/js/phaser/minebot/src/entities/ShotGroup.js":[function(require,module,exports){
+},{}],10:[function(require,module,exports){
 "use strict";
 
 var _interopRequire = function (obj) { return obj && obj.__esModule ? obj["default"] : obj; };
@@ -928,7 +1084,7 @@ var ShotGroup = (function (_Phaser$Group) {
 
 module.exports = ShotGroup;
 
-},{"./Shot.js":"/Users/danielwhiffing/Dropbox/js/phaser/minebot/src/entities/Shot.js"}],"/Users/danielwhiffing/Dropbox/js/phaser/minebot/src/entities/SmokeEmitter.js":[function(require,module,exports){
+},{"./Shot.js":9}],11:[function(require,module,exports){
 "use strict";
 
 var _get = function get(object, property, receiver) { var desc = Object.getOwnPropertyDescriptor(object, property); if (desc === undefined) { var parent = Object.getPrototypeOf(object); if (parent === null) { return undefined; } else { return get(parent, property, receiver); } } else if ("value" in desc && desc.writable) { return desc.value; } else { var getter = desc.get; if (getter === undefined) { return undefined; } return getter.call(receiver); } };
@@ -964,7 +1120,7 @@ var SmokeEmitter = (function (_Phaser$Particles$Arcade$Emitter) {
 
 module.exports = SmokeEmitter;
 
-},{}],"/Users/danielwhiffing/Dropbox/js/phaser/minebot/src/states/boot.js":[function(require,module,exports){
+},{}],12:[function(require,module,exports){
 "use strict";
 
 module.exports = {
@@ -980,12 +1136,13 @@ module.exports = {
     game.scale.scaleMode = Phaser.ScaleManager.SHOW_ALL;
     this.scale.pageAlignHorizontally = true;
     this.scale.pageAlignVertically = true;
-    game.scale.setScreenSize(true);
-
+    game.scale.fullScreenScaleMode = Phaser.ScaleManager.SHOW_ALL;
+    // game.scale.setScreenSize(true);
+    game.scale.refresh();
     game.state.start("load", true, false);
   } };
 
-},{}],"/Users/danielwhiffing/Dropbox/js/phaser/minebot/src/states/load.js":[function(require,module,exports){
+},{}],13:[function(require,module,exports){
 "use strict";
 
 module.exports = {
@@ -1001,6 +1158,7 @@ module.exports = {
     game.load.image("stars2", "images/bg2.png");
     game.load.image("grid", "images/grid.png");
     game.load.image("smoke", "images/smoke.png");
+    game.load.image("full", "images/fullscreen.png");
     game.load.atlasJSONHash("bot", "images/blue.png", "images/blue.json");
     game.load.image("shot", "images/shot.png");
     game.load.spritesheet("explosion", "images/explosion.png", 128, 128);
@@ -1013,7 +1171,7 @@ module.exports = {
   }
 };
 
-},{}],"/Users/danielwhiffing/Dropbox/js/phaser/minebot/src/states/play.js":[function(require,module,exports){
+},{}],14:[function(require,module,exports){
 "use strict";
 
 var _interopRequire = function (obj) { return obj && obj.__esModule ? obj["default"] : obj; };
@@ -1039,6 +1197,7 @@ module.exports = {
     game.bot = new Bot(game.width / 2, game.height / 2);
     game.rockets = new RocketGroup();
     game.blasts = new BlastGroup();
+    game.ui.resetWaves();
   },
 
   update: function update() {
@@ -1053,4 +1212,4 @@ module.exports = {
 
   render: function render() {} };
 
-},{"../entities/BlastGroup.js":"/Users/danielwhiffing/Dropbox/js/phaser/minebot/src/entities/BlastGroup.js","../entities/Bot.js":"/Users/danielwhiffing/Dropbox/js/phaser/minebot/src/entities/Bot.js","../entities/Interface.js":"/Users/danielwhiffing/Dropbox/js/phaser/minebot/src/entities/Interface.js","../entities/MineGroup.js":"/Users/danielwhiffing/Dropbox/js/phaser/minebot/src/entities/MineGroup.js","../entities/RocketGroup.js":"/Users/danielwhiffing/Dropbox/js/phaser/minebot/src/entities/RocketGroup.js","../entities/ShotGroup.js":"/Users/danielwhiffing/Dropbox/js/phaser/minebot/src/entities/ShotGroup.js"}]},{},["./src/game.js"]);
+},{"../entities/BlastGroup.js":2,"../entities/Bot.js":3,"../entities/Interface.js":4,"../entities/MineGroup.js":6,"../entities/RocketGroup.js":8,"../entities/ShotGroup.js":10}]},{},[1]);

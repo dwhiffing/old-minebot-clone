@@ -15,7 +15,7 @@ class RocketGroup extends Phaser.Group {
 
   get(x, y) {
     var rocket = this.getFirstDead() || this.create();
-    rocket.reset(x, y);
+    rocket.reset(x, y, 200 + (10 * game.wave_num));
     return rocket;
   }
 
@@ -25,8 +25,8 @@ class RocketGroup extends Phaser.Group {
 
   launch() {
     if (this.countLiving() < this.max) {
-      var x = game.math.chanceRoll(50) ? -20 : game.width+20;
-      var y = game.math.chanceRoll(50) ? -20 : game.height+20;
+      var x = Phaser.Utils.chanceRoll(50) ? -20 : game.width+20;
+      var y = Phaser.Utils.chanceRoll(50) ? -20 : game.height+20;
 
       this.get(x, y);
     }
